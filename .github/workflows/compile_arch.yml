@@ -1,0 +1,45 @@
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - "**/README.md"
+      - "**/compile_linux.yml"
+      - "**/compile_windows.yml"
+      - "**/build_flatpak.yml"
+      - "**/.all-contributorsrc"
+      - "**/upload_full_src.yml"
+      - "**/windows_debug.yml"
+      - "**/upload_binaries_to_draft.yml"
+  pull_request:
+    branches: [master]
+
+name: Build Pacman Package
+jobs:
+  build-pacman:
+    runs-on: ubuntu-22.04
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install system dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm --needed base-devel brotli cmake git gtk3 hicolor-icon-theme libappindicator-gtk3 libpulse libwnck3 libx11 libxi libxtst ninja openssl pipewire pkgconf qt6-base qt6-webchannel qt6-webengine zlib
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build pacman package
+        run: |
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          cd deployment/pacman
+          runuser -u builder -- env SOUNDUX_SOURCE_DIR="$GITHUB_WORKSPACE" makepkg --noconfirm --cleanbuild
+
+      - name: Upload pacman package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pacman package
+          path: deployment/pacman/soundux-mod-*.pkg.tar.zst

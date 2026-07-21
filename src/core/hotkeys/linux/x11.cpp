@@ -1,4 +1,4 @@
-#if defined(__linux__) && __has_include(<X11/Xlib.h>)
+#if (defined(__linux__) && __has_include(<X11/Xlib.h>)) || defined(Q_MOC_RUN)
 #include "../hotkeys.hpp"
 #include <QCoreApplication>
 #include <QDBusArgument>
@@ -64,7 +64,9 @@ namespace
 Q_DECLARE_METATYPE(PortalShortcut)
 Q_DECLARE_METATYPE(PortalShortcutList)
 
-namespace Soundux::Objects
+namespace Soundux
+{
+namespace Objects
 {
     Display *display;
 
@@ -721,7 +723,8 @@ namespace Soundux::Objects
 
         globalShortcutsPortal->refresh();
     }
-} // namespace Soundux::Objects
+} // namespace Objects
+} // namespace Soundux
 
 #include "x11.moc"
 

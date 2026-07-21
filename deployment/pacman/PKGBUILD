@@ -1,7 +1,7 @@
 # Maintainer: 7pxvr
 
-pkgname=soundux-mod-git
-pkgver=0.2.8.r1435.gfb548ac
+pkgname=soundux-mod
+pkgver=0.2.8
 pkgrel=1
 pkgdesc="A cross-platform soundboard with native Wayland-focused fixes"
 arch=('x86_64')
@@ -30,33 +30,27 @@ makedepends=(
   'ninja'
   'pkgconf'
 )
-provides=('soundux' 'soundux-mod')
-conflicts=('soundux' 'soundux-git' 'soundux-mod')
-source=("${pkgname}::git+https://github.com/7pxvr/Soundux-mod.git#branch=master")
-sha256sums=('SKIP')
-
-pkgver() {
-  cd "${pkgname}"
-  local version
-  version="$(sed -n 's/^project(soundux VERSION \([^ ]*\).*/\1/p' CMakeLists.txt)"
-  printf "%s.r%s.g%s" "${version}" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
-
-prepare() {
-  cd "${pkgname}"
-  git submodule update --init --recursive
-}
+provides=('soundux')
+conflicts=('soundux' 'soundux-git')
+options=('!debug')
+source=()
+sha256sums=()
 
 build() {
-  cmake -S "${pkgname}" -B build -G Ninja \
+  local source_dir="${SOUNDUX_SOURCE_DIR:-${startdir}/../..}"
+
+  cmake -S "${source_dir}" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release
   cmake --build build
 }
 
 package() {
+  local source_dir="${SOUNDUX_SOURCE_DIR:-${startdir}/../..}"
+
   DESTDIR="${pkgdir}" cmake --install build
 
-  install -Dm644 "${pkgname}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 "${source_dir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
   install -d "${pkgdir}/usr/bin"
   ln -s /opt/soundux/soundux "${pkgdir}/usr/bin/soundux"
+  ln -s /opt/soundux/soundux "${pkgdir}/usr/bin/soundux-mod"
 }

@@ -8,11 +8,11 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Download Deb Artifact
+      - name: Download Pacman Artifact
         uses: dawidd6/action-download-artifact@v2
         with:
           github_token: ${{secrets.GITHUB_TOKEN}}
-          workflow: compile_linux.yml
+          workflow: compile_arch.yml
 
       - name: List downloaded binaries
         run: "find ."
@@ -33,7 +33,7 @@ jobs:
       - name: Prepare Binaries
         run: |
           mkdir release
-          mv "./Deb package/soundux.deb" ./release/soundux-${{ steps.last_release.outputs.tag_name }}.deb
+          find "./Pacman package" -name "soundux-mod-*.pkg.tar.zst" -exec cp {} ./release/ \;
 
       - name: List Release Binaries
         run: "ls -lah release"
