@@ -32,9 +32,9 @@ namespace Soundux
             friend class AudioBackend;
 
           private:
-            pa_context *context;
-            pa_mainloop *mainloop;
-            pa_mainloop_api *mainloopApi;
+            pa_context *context = nullptr;
+            pa_mainloop *mainloop = nullptr;
+            pa_mainloop_api *mainloopApi = nullptr;
 
             //* ~= The modules we create =~
             std::optional<std::uint32_t> nullSink;

@@ -11,7 +11,11 @@ namespace Soundux
     {
         struct Settings
         {
-            Enums::BackendType audioBackend = Enums::BackendType::PulseAudio;
+#if defined(__linux__)
+            Enums::BackendType audioBackend = Enums::BackendType::PipeWire;
+#else
+            Enums::BackendType audioBackend = Enums::BackendType::None;
+#endif
             Enums::ViewMode viewMode = Enums::ViewMode::List;
             Enums::Theme theme = Enums::Theme::System;
             std::optional<std::string> language;

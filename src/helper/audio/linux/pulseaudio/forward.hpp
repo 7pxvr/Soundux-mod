@@ -14,9 +14,12 @@ namespace Soundux
 #define pulse_forward_decl(function) inline std::add_pointer_t<decltype(pa_##function)> function
 
         pulse_forward_decl(context_new);
+        pulse_forward_decl(context_unref);
         pulse_forward_decl(mainloop_new);
+        pulse_forward_decl(mainloop_free);
         pulse_forward_decl(proplist_gets);
         pulse_forward_decl(context_connect);
+        pulse_forward_decl(context_disconnect);
         pulse_forward_decl(mainloop_iterate);
         pulse_forward_decl(mainloop_get_api);
         pulse_forward_decl(context_get_state);

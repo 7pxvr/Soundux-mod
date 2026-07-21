@@ -34,6 +34,7 @@ namespace Soundux::Objects
 
             if (pulseInstance && pulseInstance->isRunningPipeWire())
             {
+                pulseInstance->destroy();
                 backend = Enums::BackendType::PipeWire;
                 Globals::gSettings.audioBackend = backend;
             }

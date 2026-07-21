@@ -211,23 +211,37 @@ namespace Soundux::Objects
     }
     void PulseAudio::destroy()
     {
-        revertDefault();
-        stopSoundInput();
-        stopAllPassthrough();
+        if (context && mainloop)
+        {
+            revertDefault();
+            stopSoundInput();
+            stopAllPassthrough();
 
-        if (nullSink)
-            await(PulseApi::context_unload_module(context, *nullSink, nullptr, nullptr));
-        if (loopBack)
-            await(PulseApi::context_unload_module(context, *loopBack, nullptr, nullptr));
-        if (loopBackSink)
-            await(PulseApi::context_unload_module(context, *loopBackSink, nullptr, nullptr));
+            if (nullSink)
+                await(PulseApi::context_unload_module(context, *nullSink, nullptr, nullptr));
+            if (loopBack)
+                await(PulseApi::context_unload_module(context, *loopBack, nullptr, nullptr));
+            if (loopBackSink)
+                await(PulseApi::context_unload_module(context, *loopBackSink, nullptr, nullptr));
 
-        if (passthrough)
-            await(PulseApi::context_unload_module(context, *passthrough, nullptr, nullptr));
-        if (passthroughSink)
-            await(PulseApi::context_unload_module(context, *passthroughSink, nullptr, nullptr));
-        if (passthroughLoopBack)
-            await(PulseApi::context_unload_module(context, *passthroughLoopBack, nullptr, nullptr));
+            if (passthrough)
+                await(PulseApi::context_unload_module(context, *passthrough, nullptr, nullptr));
+            if (passthroughSink)
+                await(PulseApi::context_unload_module(context, *passthroughSink, nullptr, nullptr));
+            if (passthroughLoopBack)
+                await(PulseApi::context_unload_module(context, *passthroughLoopBack, nullptr, nullptr));
+
+            PulseApi::context_disconnect(context);
+            PulseApi::context_unref(context);
+            context = nullptr;
+        }
+
+        if (mainloop)
+        {
+            PulseApi::mainloop_free(mainloop);
+            mainloop = nullptr;
+            mainloopApi = nullptr;
+        }
     }
     void PulseAudio::await(pa_operation *operation)
     {

@@ -20,10 +20,13 @@ bool Soundux::PulseApi::setup()
 #if defined(USE_FLATPAK)
 #define load(name) name = reinterpret_cast<decltype(name)>(pa_##name);
     load(mainloop_new);
+    load(mainloop_free);
     load(mainloop_iterate);
     load(mainloop_get_api);
     load(context_new);
+    load(context_unref);
     load(context_connect);
+    load(context_disconnect);
     load(context_set_state_callback);
     load(context_load_module);
     load(context_get_module_info_list);
@@ -52,10 +55,13 @@ bool Soundux::PulseApi::setup()
 #define stringify(what) #what
 #define load(name) loadFunc(libpulse, name, stringify(pa_##name))
             load(mainloop_new);
+            load(mainloop_free);
             load(mainloop_iterate);
             load(mainloop_get_api);
             load(context_new);
+            load(context_unref);
             load(context_connect);
+            load(context_disconnect);
             load(context_set_state_callback);
             load(context_load_module);
             load(context_get_module_info_list);
