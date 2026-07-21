@@ -15,6 +15,16 @@
 
 namespace Soundux::Objects
 {
+    static bool isRecordingStream(const Node &node)
+    {
+        return node.mediaClass == "Stream/Input/Audio";
+    }
+
+    static bool isPlaybackStream(const Node &node)
+    {
+        return node.mediaClass == "Stream/Output/Audio";
+    }
+
     static std::vector<Port> nodePorts(const std::map<std::uint32_t, Node> &nodes,
                                        const std::map<std::uint32_t, Port> &ports, std::uint32_t nodeId)
     {
@@ -152,6 +162,10 @@ namespace Soundux::Objects
             if (const auto *monitor = spa_dict_lookup(info->props, "stream.monitor"); monitor)
             {
                 self.isMonitor = true;
+            }
+            if (const auto *mediaClass = spa_dict_lookup(info->props, PW_KEY_MEDIA_CLASS); mediaClass)
+            {
+                self.mediaClass = mediaClass;
             }
 
             //* Yes this is swapped. (For compatibility reasons)
@@ -574,7 +588,7 @@ namespace Soundux::Objects
         {
             const auto identity = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
                                              node.rawName);
-            if (!identity.empty() && !node.isMonitor)
+            if (!identity.empty() && isRecordingStream(node) && !node.isMonitor)
             {
                 bool hasInput = false;
                 for (const auto &port : nodePorts(*scopedNodes, *scopedPorts, nodeId))
@@ -617,7 +631,7 @@ namespace Soundux::Objects
         {
             const auto identity = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
                                              node.rawName);
-            if (!identity.empty() && !node.isMonitor)
+            if (!identity.empty() && isPlaybackStream(node) && !node.isMonitor)
             {
                 bool hasOutput = false;
                 for (const auto &port : nodePorts(*scopedNodes, *scopedPorts, nodeId))
@@ -655,6 +669,10 @@ namespace Soundux::Objects
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
+            if (!isPlaybackStream(node))
+            {
+                continue;
+            }
             if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) == app ||
                 node.applicationBinary == app)
             {
@@ -678,6 +696,10 @@ namespace Soundux::Objects
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
+            if (!isRecordingStream(node))
+            {
+                continue;
+            }
             if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) == app ||
                 node.applicationBinary == app)
             {
@@ -830,6 +852,10 @@ namespace Soundux::Objects
 
         for (const auto &[nodeId, node] : nodes)
         {
+            if (!isRecordingStream(node))
+            {
+                continue;
+            }
             if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) !=
                     app->application &&
                 node.applicationBinary != app->application)
@@ -918,6 +944,10 @@ namespace Soundux::Objects
 
         for (const auto &[nodeId, node] : nodes)
         {
+            if (!isPlaybackStream(node))
+            {
+                continue;
+            }
             if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) !=
                     app->application &&
                 node.applicationBinary != app->application)

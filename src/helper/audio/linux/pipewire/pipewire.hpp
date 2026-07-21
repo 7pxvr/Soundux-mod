@@ -43,9 +43,10 @@ namespace Soundux
         {
             std::uint32_t id;
             std::string name;
-            std::uint32_t pid;
+            std::uint32_t pid = 0;
             std::string rawName;
             bool isMonitor = false;
+            std::string mediaClass;
             std::string mediaName;
             std::string applicationBinary;
             std::vector<std::string> applicationIdentifiers;

@@ -537,7 +537,10 @@ namespace Soundux::Objects
                 {
                     if (output->application.find("soundux") == std::string::npos)
                     {
-                        Globals::gAudioBackend->inputSoundTo(output);
+                        if (auto app = Globals::gAudioBackend->getRecordingApp(output->application))
+                        {
+                            Globals::gAudioBackend->inputSoundTo(app);
+                        }
                     }
                 }
             }
