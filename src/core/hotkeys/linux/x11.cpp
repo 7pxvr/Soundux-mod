@@ -1,6 +1,5 @@
 #if defined(__linux__) && __has_include(<X11/Xlib.h>)
 #include "../hotkeys.hpp"
-#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
 #include <QCoreApplication>
 #include <QDBusArgument>
 #include <QDBusConnection>
@@ -16,7 +15,6 @@
 #include <QTimer>
 #include <Qt>
 #include <QVariantMap>
-#endif
 #include <X11/X.h>
 #include <X11/XKBlib.h>
 #include <X11/Xlib.h>
@@ -41,7 +39,6 @@
 
 using namespace std::chrono_literals;
 
-#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
 namespace
 {
     using PortalShortcut = QPair<QString, QVariantMap>;
@@ -66,7 +63,6 @@ namespace
 
 Q_DECLARE_METATYPE(PortalShortcut)
 Q_DECLARE_METATYPE(PortalShortcutList)
-#endif
 
 namespace Soundux::Objects
 {
@@ -81,7 +77,6 @@ namespace Soundux::Objects
                (sessionType && std::string(sessionType) == "wayland");
     }
 
-#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
     constexpr auto portalService = "org.freedesktop.portal.Desktop";
     constexpr auto portalPath = "/org/freedesktop/portal/desktop";
     constexpr auto globalShortcutsInterface = "org.freedesktop.portal.GlobalShortcuts";
@@ -557,7 +552,6 @@ namespace Soundux::Objects
 
         return "KEY_" + std::to_string(key);
     }
-#endif
 
     void Hotkeys::listen()
     {
@@ -648,12 +642,10 @@ namespace Soundux::Objects
     {
         if (!display)
         {
-#if defined(SOUNDUX_WEBVIEW_QT)
             if (isWaylandSession())
             {
                 return getQtKeyName(key);
             }
-#endif
             return "KEY_" + std::to_string(key);
         }
 
@@ -680,9 +672,7 @@ namespace Soundux::Objects
     void Hotkeys::stop()
     {
         kill = true;
-#if defined(SOUNDUX_WEBVIEW_QT)
         globalShortcutsPortal.reset();
-#endif
         if (listener.joinable())
         {
             listener.join();
@@ -717,7 +707,6 @@ namespace Soundux::Objects
         }
     }
 
-#if defined(SOUNDUX_WEBVIEW_QT)
     void Hotkeys::refreshWaylandGlobalShortcuts()
     {
         if (!isWaylandSession() || !QCoreApplication::instance())
@@ -732,13 +721,8 @@ namespace Soundux::Objects
 
         globalShortcutsPortal->refresh();
     }
-#else
-    void Hotkeys::refreshWaylandGlobalShortcuts() {}
-#endif
 } // namespace Soundux::Objects
 
-#if defined(SOUNDUX_WEBVIEW_QT)
 #include "x11.moc"
-#endif
 
 #endif

@@ -1,7 +1,7 @@
 # Maintainer: 7pxvr
 
 pkgname=soundux-mod
-pkgver=0.2.8.mod3
+pkgver=0.2.8.mod4
 pkgrel=1
 pkgdesc="A cross-platform soundboard with native Wayland-focused fixes"
 arch=('x86_64')
