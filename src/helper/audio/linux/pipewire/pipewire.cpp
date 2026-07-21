@@ -15,6 +15,29 @@
 
 namespace Soundux::Objects
 {
+    static std::vector<Port> nodePorts(const std::map<std::uint32_t, Node> &nodes,
+                                       const std::map<std::uint32_t, Port> &ports, std::uint32_t nodeId)
+    {
+        std::vector<Port> result;
+        if (auto node = nodes.find(nodeId); node != nodes.end())
+        {
+            for (const auto &[portId, port] : node->second.ports)
+            {
+                result.emplace_back(port);
+            }
+        }
+
+        for (const auto &[portId, port] : ports)
+        {
+            if (port.parentNode == nodeId)
+            {
+                result.emplace_back(port);
+            }
+        }
+
+        return result;
+    }
+
     static std::string formatAppName(std::uint32_t pid, const std::string &appName, const std::string &binary,
                                      const std::string &mediaName = {},
                                      const std::vector<std::string> &identifiers = {})
@@ -49,14 +72,14 @@ namespace Soundux::Objects
     }
 
     static std::string appIdentity(std::uint32_t pid, const std::string &binary,
-                                   const std::vector<std::string> &identifiers = {})
+                                   const std::vector<std::string> &identifiers = {}, const std::string &fallback = {})
     {
         if (auto identity = LinuxAudioAppName::identity(pid, binary, identifiers))
         {
             return *identity;
         }
 
-        return binary;
+        return binary.empty() && pid > 0 ? fallback : binary;
     }
 
     static std::uint32_t encodePipeWireVersion(const std::string &rawVersion)
@@ -291,7 +314,7 @@ namespace Soundux::Objects
 
                 Node node;
                 node.id = id;
-                node.rawName = name;
+                node.rawName = name ? name : "";
 
                 spa_hook listener;
                 pw_node_events events = {};
@@ -376,6 +399,14 @@ namespace Soundux::Objects
             if (scopedPorts->find(id) != scopedPorts->end())
             {
                 scopedPorts->erase(id);
+            }
+
+            for (auto &[nodeId, node] : *scopedNodes)
+            {
+                if (node.ports.erase(id) > 0)
+                {
+                    break;
+                }
             }
         }
     }
@@ -538,12 +569,15 @@ namespace Soundux::Objects
         std::vector<std::shared_ptr<RecordingApp>> rtn;
 
         auto scopedNodes = nodes.scoped();
+        auto scopedPorts = ports.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (!node.name.empty() && !node.isMonitor)
+            const auto identity = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
+                                             node.rawName);
+            if (!identity.empty() && !node.isMonitor)
             {
                 bool hasInput = false;
-                for (const auto &[portId, port] : node.ports)
+                for (const auto &port : nodePorts(*scopedNodes, *scopedPorts, nodeId))
                 {
                     if (port.direction == SPA_DIRECTION_INPUT)
                     {
@@ -559,7 +593,11 @@ namespace Soundux::Objects
                     app.nodeId = nodeId;
                     app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
                                              node.applicationIdentifiers);
-                    app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
+                    if (app.name.empty())
+                    {
+                        app.name = identity;
+                    }
+                    app.application = identity;
                     rtn.emplace_back(std::make_shared<PipeWireRecordingApp>(app));
                 }
             }
@@ -574,12 +612,15 @@ namespace Soundux::Objects
         std::vector<std::shared_ptr<PlaybackApp>> rtn;
 
         auto scopedNodes = nodes.scoped();
+        auto scopedPorts = ports.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (!node.name.empty() && !node.isMonitor)
+            const auto identity = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
+                                             node.rawName);
+            if (!identity.empty() && !node.isMonitor)
             {
                 bool hasOutput = false;
-                for (const auto &[portId, port] : node.ports)
+                for (const auto &port : nodePorts(*scopedNodes, *scopedPorts, nodeId))
                 {
                     if (port.direction == SPA_DIRECTION_OUTPUT)
                     {
@@ -595,7 +636,11 @@ namespace Soundux::Objects
                     app.nodeId = nodeId;
                     app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
                                              node.applicationIdentifiers);
-                    app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
+                    if (app.name.empty())
+                    {
+                        app.name = identity;
+                    }
+                    app.application = identity;
                     rtn.emplace_back(std::make_shared<PipeWirePlaybackApp>(app));
                 }
             }
@@ -606,10 +651,11 @@ namespace Soundux::Objects
 
     std::shared_ptr<PlaybackApp> PipeWire::getPlaybackApp(const std::string &app)
     {
+        sync();
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) == app ||
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) == app ||
                 node.applicationBinary == app)
             {
                 PipeWirePlaybackApp app;
@@ -617,7 +663,8 @@ namespace Soundux::Objects
                 app.nodeId = nodeId;
                 app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
                                          node.applicationIdentifiers);
-                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
+                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
+                                              node.rawName);
                 return std::make_shared<PipeWirePlaybackApp>(app);
             }
         }
@@ -627,10 +674,11 @@ namespace Soundux::Objects
 
     std::shared_ptr<RecordingApp> PipeWire::getRecordingApp(const std::string &app)
     {
+        sync();
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) == app ||
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) == app ||
                 node.applicationBinary == app)
             {
                 PipeWireRecordingApp app;
@@ -638,7 +686,8 @@ namespace Soundux::Objects
                 app.nodeId = nodeId;
                 app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
                                          node.applicationIdentifiers);
-                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
+                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers,
+                                              node.rawName);
                 return std::make_shared<PipeWireRecordingApp>(app);
             }
         }
@@ -755,11 +804,6 @@ namespace Soundux::Objects
             Fancy::fancy.logTime().warning() << "Invalid app" << std::endl;
             return false;
         }
-        if (soundInputLinks.count(app->application))
-        {
-            return true;
-        }
-
         auto pipeWireApp = std::dynamic_pointer_cast<PipeWireRecordingApp>(app);
         if (!pipeWireApp)
         {
@@ -771,14 +815,23 @@ namespace Soundux::Objects
         auto nodes = this->nodes.copy();
         auto ports = this->ports.copy();
 
-        if (!soundInputLinks.count(app->application))
+        if (soundInputLinks.count(app->application))
+        {
+            for (const auto &id : soundInputLinks.at(app->application))
+            {
+                deleteLink(id);
+            }
+            soundInputLinks.at(app->application).clear();
+        }
+        else
         {
             soundInputLinks.emplace(app->application, std::vector<std::uint32_t>{});
         }
 
         for (const auto &[nodeId, node] : nodes)
         {
-            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) != app->application &&
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) !=
+                    app->application &&
                 node.applicationBinary != app->application)
                 continue;
 
@@ -787,9 +840,9 @@ namespace Soundux::Objects
             {
                 if (port.direction == SPA_DIRECTION_OUTPUT && port.portAlias.find("soundux") != std::string::npos)
                 {
-                    for (const auto &[nodePortId, nodePort] : node.ports)
+                    for (const auto &nodePort : nodePorts(nodes, ports, nodeId))
                     {
-                        if (linkedTargetPorts.count(nodePortId))
+                        if (linkedTargetPorts.count(nodePort.id))
                         {
                             continue;
                         }
@@ -801,12 +854,12 @@ namespace Soundux::Objects
 
                             if (nodePort.side == port.side || nodePort.side == Side::MONO)
                             {
-                                auto link = linkPorts(nodePortId, portId);
+                                auto link = linkPorts(nodePort.id, portId);
 
                                 if (link)
                                 {
                                     success = true;
-                                    linkedTargetPorts.emplace(nodePortId);
+                                    linkedTargetPorts.emplace(nodePort.id);
                                     soundInputLinks.at(app->application).emplace_back(*link);
                                 }
                             }
@@ -819,6 +872,7 @@ namespace Soundux::Objects
         if (!success)
         {
             Fancy::fancy.logTime().warning() << "Could not find ports for app " << app->application << std::endl;
+            soundInputLinks.erase(app->application);
         }
 
         return success;
@@ -864,7 +918,8 @@ namespace Soundux::Objects
 
         for (const auto &[nodeId, node] : nodes)
         {
-            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) != app->application &&
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers, node.rawName) !=
+                    app->application &&
                 node.applicationBinary != app->application)
                 continue;
 
@@ -872,7 +927,7 @@ namespace Soundux::Objects
             {
                 if (port.direction == SPA_DIRECTION_INPUT && port.portAlias.find("soundux") != std::string::npos)
                 {
-                    for (const auto &[nodePortId, nodePort] : node.ports)
+                    for (const auto &nodePort : nodePorts(nodes, ports, nodeId))
                     {
                         if (nodePort.side == Side::UNDEFINED || port.side == Side::UNDEFINED)
                             continue;
@@ -881,7 +936,7 @@ namespace Soundux::Objects
                         {
                             if (nodePort.side == port.side || nodePort.side == Side::MONO)
                             {
-                                auto link = linkPorts(portId, nodePortId);
+                                auto link = linkPorts(portId, nodePort.id);
 
                                 if (link)
                                 {
