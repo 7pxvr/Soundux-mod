@@ -88,13 +88,13 @@ namespace
         return std::nullopt;
     }
 
-    void suppressChromiumStderrNoise()
+    void configureChromiumFlags()
     {
-        auto flags = std::string(std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
-                                     ? std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
-                                     : "");
+        auto flags =
+            std::string(std::getenv("QTWEBENGINE_CHROMIUM_FLAGS") ? std::getenv("QTWEBENGINE_CHROMIUM_FLAGS") : "");
 
-        for (const auto *flag : {"--disable-logging", "--log-level=3"})
+        for (const auto *flag : {"--disable-zero-copy", "--disable-gpu-memory-buffer-compositor-resources",
+                                 "--disable-gpu-memory-buffer-video-frames"})
         {
             if (flags.find(flag) == std::string::npos)
             {
@@ -103,6 +103,21 @@ namespace
                     flags += ' ';
                 }
                 flags += flag;
+            }
+        }
+
+        if (std::getenv("SOUNDUX_DEBUG") == nullptr) // NOLINT
+        {
+            for (const auto *flag : {"--disable-logging", "--log-level=3"})
+            {
+                if (flags.find(flag) == std::string::npos)
+                {
+                    if (!flags.empty())
+                    {
+                        flags += ' ';
+                    }
+                    flags += flag;
+                }
             }
         }
 
@@ -168,7 +183,7 @@ namespace Webview
 
     Window::Window(std::size_t width, std::size_t height) : BaseWindow("", width, height)
     {
-        suppressChromiumStderrNoise();
+        configureChromiumFlags();
 
         if (!QApplication::instance())
         {
