@@ -26,24 +26,24 @@ The app automatically refreshes the applications and can remember them
     <br><br><br>
     <img src="assets/logo.gif" height="200"/>
     <br>
-    <h6>A cross-platform soundboard 🔊</h6>
+    <h6>A Linux soundboard 🔊</h6>
     <br>
-        <a href="https://github.com/Soundux/Soundux/releases">
-      <img src="https://img.shields.io/github/release/Soundux/Soundux.svg?style=flat-square" alt="Latest Stable Release" />
-    </a>
-    <br>
-    <a href="https://github.com/Soundux/Soundux/stargazers">
-      <img src="https://img.shields.io/github/stars/Soundux/soundux?style=flat-square" alt="GitHub Repo stars">
-    </a>
-    <a href="https://github.com/Soundux/Soundux/issues">
-      <img src="https://img.shields.io/github/issues/Soundux/soundux?style=flat-square" alt="GitHub issues">
-    </a>
-    <a href="https://github.com/Soundux/Soundux/pulls">
-      <img src="https://img.shields.io/github/issues-pr-raw/Soundux/soundux?label=pulls&style=flat-square" alt="GitHub pull requests">
+        <a href="https://github.com/7pxvr/Soundux-mod/releases">
+      <img src="https://img.shields.io/github/release/7pxvr/Soundux-mod.svg?style=flat-square" alt="Latest Stable Release" />
     </a>
     <br>
-    <a href="https://github.com/Soundux/Soundux/blob/master/LICENSE">
-      <img src="https://img.shields.io/github/license/Soundux/Soundux.svg?style=flat-square" alt="License" />
+    <a href="https://github.com/7pxvr/Soundux-mod/stargazers">
+      <img src="https://img.shields.io/github/stars/7pxvr/Soundux-mod?style=flat-square" alt="GitHub Repo stars">
+    </a>
+    <a href="https://github.com/7pxvr/Soundux-mod/issues">
+      <img src="https://img.shields.io/github/issues/7pxvr/Soundux-mod?style=flat-square" alt="GitHub issues">
+    </a>
+    <a href="https://github.com/7pxvr/Soundux-mod/pulls">
+      <img src="https://img.shields.io/github/issues-pr-raw/7pxvr/Soundux-mod?label=pulls&style=flat-square" alt="GitHub pull requests">
+    </a>
+    <br>
+    <a href="https://github.com/7pxvr/Soundux-mod/blob/master/LICENSE">
+      <img src="https://img.shields.io/github/license/7pxvr/Soundux-mod.svg?style=flat-square" alt="License" />
     </a>
     <a href="https://discord.gg/4HwSGN4Ec2">
       <img src="https://img.shields.io/discord/697348809591750706?label=discord&style=flat-square" alt="Discord" />
@@ -52,14 +52,8 @@ The app automatically refreshes the applications and can remember them
       <img src="https://img.shields.io/badge/chat-matrix%20space-blue?style=flat-square" alt="Matrix" />
     </a>
     <br>
-    <a href="https://github.com/Soundux/Soundux/actions?query=workflow%3A%22Build+on+Windows%22">
-      <img src="https://img.shields.io/github/workflow/status/Soundux/Soundux/Build%20on%20Windows?label=windows%20build&style=flat-square" alt="Windows Build" />
-    </a>
-    <a href="https://github.com/Soundux/Soundux/actions?query=workflow%3A%22Build+on+Linux%22">
-      <img src="https://img.shields.io/github/workflow/status/Soundux/Soundux/Build%20on%20Linux?label=linux%20build&style=flat-square" alt="Linux Build" />
-    </a>
-    <a href="https://github.com/Soundux/Soundux/actions?query=workflow%3A%22Build+Flatpak%22">
-      <img src="https://img.shields.io/github/workflow/status/Soundux/Soundux/Build%20Flatpak?label=flatpak%20build&style=flat-square" alt="Flatpak Build" />
+    <a href="https://github.com/7pxvr/Soundux-mod/actions/workflows/compile_arch.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/7pxvr/Soundux-mod/compile_arch.yml?branch=master&label=pacman%20package&style=flat-square" alt="Pacman package build" />
     </a>
     <hr>
     <a href="https://discord.com/invite/4HwSGN4Ec2">
@@ -81,8 +75,8 @@ The app automatically refreshes the applications and can remember them
 | ![Grid View Dark](https://raw.githubusercontent.com/Soundux/screenshots/screenshots/grid-view-dark.png)              | ![Grid View Light](https://raw.githubusercontent.com/Soundux/screenshots/screenshots/grid-view-light.png)              |
 
 # 👋 Introduction
-Soundux is a cross-platform soundboard that features a simple user interface.
-With Soundux you can play audio to a specific application on Linux and to your VB-CABLE sink on Windows.
+Soundux-mod is a Linux soundboard based on Soundux.
+With Soundux-mod you can play audio to a specific application or stream it directly to your microphone.
 
 # 🏃 Runtime Dependencies
 These are required to run the program
@@ -90,61 +84,35 @@ These are required to run the program
 ## 🐧 Linux
 Please refer to your distro instructions on how to install
 - [pulseaudio](https://gitlab.freedesktop.org/pulseaudio/pulseaudio) / [pipewire](https://pipewire.org/) >= 0.3.26
-- Xorg
-- Libwnck3 (optional, for icon support)
-- Webkit2gtk
-- libappindicator3
-- [youtube-dl](https://youtube-dl.org/) & [ffmpeg](https://www.ffmpeg.org/) (optional, for downloader support)
-## <img src="https://www.vectorlogo.zone/logos/microsoft/microsoft-icon.svg" height="20"/> Windows
-- [VB-CABLE](https://vb-audio.com/Cable/) (Our installer automatically installs VB-CABLE)
-- [Webview2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (Is also shipped with the installer)
-- [youtube-dl](https://youtube-dl.org/) & [ffmpeg](https://www.ffmpeg.org/) (optional, for downloader support)
+- Qt 6 WebEngine and Qt 6 WebChannel
+- X11 libraries for legacy X11 support
+- Libwnck3 (optional, X11 icon support)
+- libappindicator3 (optional, tray support where available)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) or [youtube-dl](https://youtube-dl.org/) & [ffmpeg](https://www.ffmpeg.org/) (optional, for downloader support)
 
 # 📥 Installation
 
 ## 🐧 Linux
 
 ### <img src="https://www.vectorlogo.zone/logos/archlinux/archlinux-icon.svg" height="20"/> Arch Linux and derivatives
-You can install our package with your AUR helper of choice which will automatically compile and install the latest release version
+Download the `soundux-mod-*.pkg.tar.zst` package from the [latest GitHub release](https://github.com/7pxvr/Soundux-mod/releases/latest), then install it with pacman:
 ```sh
-yay -S soundux
-```
-We also provide a `soundux-git` package which compiles from the master branch
-
-### <img src="https://www.vectorlogo.zone/logos/ubuntu/ubuntu-icon.svg" height="20"/> Ubuntu and derivatives
-You can install Soundux via [pacstall](https://github.com/pacstall/pacstall)
-```sh
-pacstall -I soundux
+sudo pacman -U soundux-mod-*.pkg.tar.zst
 ```
 
-### <img src="https://www.vectorlogo.zone/logos/getfedora/getfedora-icon.svg" height="20"> Fedora
-Soundux can be installed via this [COPR repository](https://copr.fedorainfracloud.org/coprs/rivenirvana/soundux/)
-```sh
-sudo dnf copr enable rivenirvana/soundux
-sudo dnf install soundux pipewire-devel
-```
-
-### <img src="https://www.vectorlogo.zone/logos/linuxfoundation/linuxfoundation-icon.svg" height="20" /> Distro-agnostic packages
-You can grab the latest release from the Snap Store or Flathub
-
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/soundux)
-
-<a href='https://flathub.org/apps/details/io.github.Soundux'>
-  <img width='240' alt='Download on Flathub' src='https://flathub.org/assets/badges/flathub-badge-en.png'/>
-</a>
-
-## <img src="https://www.vectorlogo.zone/logos/microsoft/microsoft-icon.svg" height="20"/> Windows
-Download our installer or portable from [the latest release](https://github.com/Soundux/Soundux/releases/latest)
+### <img src="https://www.vectorlogo.zone/logos/linuxfoundation/linuxfoundation-icon.svg" height="20" /> Other Linux distributions
+Prebuilt release packages currently target pacman/Arch only. Build from source if you use another distribution.
 
 # 🔨 Compilation
 
 ## 🔗 Build Dependencies
 
 ### 🐧 Linux
-- Webkit2gtk
+- Qt 6 Base, WebEngine, and WebChannel development files
 - PulseAudio development headers
 - PipeWire development headers
 - X11 client-side development headers
+- GTK3 development headers
 - libappindicator3 development headers
 - OpenSSL development headers
 - G++ >= 9
@@ -152,20 +120,14 @@ Download our installer or portable from [the latest release](https://github.com/
 
 #### <img src="https://www.vectorlogo.zone/logos/debian/debian-icon.svg" height="20"/> Debian / <img src="https://www.vectorlogo.zone/logos/ubuntu/ubuntu-icon.svg" height="20"/> Ubuntu and derivatives
 ```sh
-sudo apt install git build-essential cmake libx11-dev libxi-dev libwebkit2gtk-4.0-dev libappindicator3-dev libssl-dev libpulse-dev libpipewire-0.3-dev
+sudo apt install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev qt6-webengine-dev-tools qt6-webchannel-dev libx11-dev libxi-dev libgtk-3-dev libwnck-3-dev libappindicator3-dev libssl-dev libpulse-dev libpipewire-0.3-dev
 ```
 > If you're on Ubuntu 20.04 or lower you might have to add the PipeWire PPA:
 > `sudo add-apt-repository ppa:pipewire-debian/pipewire-upstream`
 #### <img src="https://www.vectorlogo.zone/logos/getfedora/getfedora-icon.svg" height="20"> Fedora and derivatives
 ```sh
-sudo dnf install git webkit2gtk3 cmake llvm clang libXi-devel gtk3-devel webkit2gtk3-devel libappindicator-gtk3-devel pulseaudio-libs-devel pipewire-devel
+sudo dnf install git cmake gcc-c++ qt6-qtbase-devel qt6-qtwebengine-devel qt6-qtwebchannel-devel libXi-devel gtk3-devel libwnck3-devel libappindicator-gtk3-devel openssl-devel pulseaudio-libs-devel pipewire-devel
 ```
-
-### <img src="https://www.vectorlogo.zone/logos/microsoft/microsoft-icon.svg" height="20"/> Windows
-- Nuget
-- MSVC
-- CMake
-- OpenSSL
 
 ## 👷 Build
 Clone the repository
@@ -183,7 +145,7 @@ cmake --build . --config Release
 ```
 To start the program
 ```sh
-./soundux # .\soundux.exe on Windows
+./soundux
 ```
 
 ## 🖥️ Install
