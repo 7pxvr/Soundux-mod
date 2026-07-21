@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(webview VERSION 0.2 DESCRIPTION "A cross-platform C++ webview library")
 option(WINDOWS_8 "Replaces the call to SetProcessDpiAwarenessContext call with SetProcessDpiAwareness to support Windows 8.1" OFF)
+option(USE_QT_WEBENGINE "Use Qt WebEngine instead of WebKitGTK on Linux when available" ON)
 
 file(GLOB src
     "webview/src/*.cpp"
@@ -9,6 +10,7 @@ file(GLOB src
 )
 
 add_library(webview STATIC ${src})
+target_sources(webview PRIVATE webview/include/core/linux/window.hpp)
 
 if (WIN32)
     target_compile_options(webview PRIVATE /W4)
@@ -36,12 +38,26 @@ elseif(UNIX)
         target_compile_options(webview PRIVATE -Wall -Wextra -Werror -pedantic -Wno-unused-lambda-capture)
     endif()
 
-    find_package(PkgConfig REQUIRED)
-	pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
-	pkg_check_modules(WEBKIT2 REQUIRED webkit2gtk-4.0)
+    if (USE_QT_WEBENGINE)
+        find_package(Qt6 COMPONENTS Widgets WebEngineWidgets WebChannel DBus QUIET)
+    endif()
 
-    target_link_libraries(webview INTERFACE ${GTK3_LIBRARIES} ${WEBKIT2_LIBRARIES} pthread)
-    target_include_directories(webview SYSTEM PUBLIC ${GTK3_INCLUDE_DIRS} ${WEBKIT2_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR})
+    if (Qt6_FOUND)
+        set_target_properties(webview PROPERTIES AUTOMOC ON)
+        target_compile_definitions(webview PUBLIC SOUNDUX_WEBVIEW_QT=1)
+        target_link_libraries(webview PUBLIC Qt6::Widgets Qt6::WebEngineWidgets Qt6::WebChannel Qt6::DBus pthread)
+        target_include_directories(webview SYSTEM PUBLIC ${PROJECT_SOURCE_DIR})
+    else()
+        find_package(PkgConfig REQUIRED)
+	    pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+	    pkg_check_modules(WEBKIT2 webkit2gtk-4.1)
+	    if (NOT WEBKIT2_FOUND)
+		    pkg_check_modules(WEBKIT2 REQUIRED webkit2gtk-4.0)
+	    endif()
+
+        target_link_libraries(webview INTERFACE ${GTK3_LIBRARIES} ${WEBKIT2_LIBRARIES} pthread)
+        target_include_directories(webview SYSTEM PUBLIC ${GTK3_INCLUDE_DIRS} ${WEBKIT2_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR})
+    endif()
 endif()
 
 target_include_directories(webview SYSTEM PUBLIC "webview/include/")

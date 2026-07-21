@@ -56,6 +56,14 @@ void Webview::BaseWindow::onResize(std::size_t newWidth, std ::size_t newHeight)
     }
 }
 
+void Webview::BaseWindow::onKeyEvent(int key, bool pressed)
+{
+    if (keyCallback)
+    {
+        keyCallback(key, pressed);
+    }
+}
+
 void Webview::BaseWindow::onNavigate(std::string newUrl)
 {
     url = std::move(newUrl);
@@ -167,6 +175,11 @@ void Webview::BaseWindow::setNavigateCallback(std::function<void(const std::stri
 void Webview::BaseWindow::setResizeCallback(std::function<void(std::size_t, std::size_t)> callback)
 {
     resizeCallback = std::move(callback);
+}
+
+void Webview::BaseWindow::setKeyCallback(std::function<void(int, bool)> callback)
+{
+    keyCallback = std::move(callback);
 }
 
 void Webview::BaseWindow::expose(const Function &function)

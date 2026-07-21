@@ -1,5 +1,329 @@
 #if defined(__linux__)
 #include <core/linux/window.hpp>
+#if defined(SOUNDUX_WEBVIEW_QT)
+#include <QApplication>
+#include <QCloseEvent>
+#include <QEvent>
+#include <QIcon>
+#include <QKeyEvent>
+#include <QMainWindow>
+#include <QMetaObject>
+#include <QResizeEvent>
+#include <QTimer>
+#include <QUrl>
+#include <QWebChannel>
+#include <QWebEnginePage>
+#include <QWebEngineProfile>
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
+#include <QWebEngineSettings>
+#include <QWebEngineView>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+
+namespace
+{
+    int qtArgc = 1;
+    char qtAppName[] = "soundux";
+    char *qtArgv[] = {qtAppName, nullptr};
+
+    constexpr auto bridgeScriptName = "soundux-qt-bridge";
+    constexpr auto bridgeScript = R"js(
+(function() {
+    var pendingMessages = [];
+
+    window.external = {
+        invoke: function(message) {
+            pendingMessages.push(String(message));
+        }
+    };
+
+    function installExternal(channel) {
+        var nativeExternal = channel.objects.external;
+        window.external = {
+            invoke: function(message) {
+                nativeExternal.invoke(String(message));
+            }
+        };
+
+        for (var i = 0; i < pendingMessages.length; i++) {
+            nativeExternal.invoke(pendingMessages[i]);
+        }
+        pendingMessages = [];
+    }
+
+    function connectChannel() {
+        if (!window.qt || !window.qt.webChannelTransport || !window.QWebChannel) {
+            setTimeout(connectChannel, 0);
+            return;
+        }
+
+        new QWebChannel(qt.webChannelTransport, installExternal);
+    }
+
+    connectChannel();
+})();
+)js";
+
+    std::string readFile(const std::filesystem::path &path)
+    {
+        std::ifstream stream(path);
+        std::ostringstream buffer;
+        buffer << stream.rdbuf();
+        return buffer.str();
+    }
+
+    std::optional<std::filesystem::path> firstExistingPath(std::initializer_list<std::filesystem::path> paths)
+    {
+        for (const auto &path : paths)
+        {
+            if (std::filesystem::exists(path))
+            {
+                return path;
+            }
+        }
+
+        return std::nullopt;
+    }
+} // namespace
+
+namespace Webview
+{
+    class NativeWindow : public QMainWindow
+    {
+        Window *owner;
+
+      public:
+        explicit NativeWindow(Window *owner) : owner(owner) {}
+
+      protected:
+        bool eventFilter(QObject *object, QEvent *event) override
+        {
+            if (owner && (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease))
+            {
+                auto *keyEvent = static_cast<QKeyEvent *>(event);
+                if (!keyEvent->isAutoRepeat() && keyEvent->key() != Qt::Key_unknown)
+                {
+                    owner->handleKeyEvent(keyEvent->key(), event->type() == QEvent::KeyPress);
+                }
+            }
+
+            return QMainWindow::eventFilter(object, event);
+        }
+
+        void closeEvent(QCloseEvent *event) override
+        {
+            if (owner && owner->handleClose())
+            {
+                event->ignore();
+                return;
+            }
+
+            event->accept();
+        }
+
+        void resizeEvent(QResizeEvent *event) override
+        {
+            QMainWindow::resizeEvent(event);
+            if (owner)
+            {
+                owner->handleResize(static_cast<std::size_t>(event->size().width()),
+                                    static_cast<std::size_t>(event->size().height()));
+            }
+        }
+    };
+
+    ExternalBridge::ExternalBridge(Window *parent, QObject *qtParent) : QObject(qtParent), parent(parent) {}
+
+    void ExternalBridge::invoke(const QString &message)
+    {
+        if (parent)
+        {
+            parent->handleExternalInvoke(message);
+        }
+    }
+
+    Window::Window(std::size_t width, std::size_t height) : BaseWindow("", width, height)
+    {
+        if (!QApplication::instance())
+        {
+            application = std::make_unique<QApplication>(qtArgc, qtArgv);
+            QApplication::setApplicationName(QStringLiteral("Soundux"));
+            QApplication::setDesktopFileName(QStringLiteral("soundux"));
+        }
+
+        window = new NativeWindow(this);
+        webview = new QWebEngineView(window);
+        channel = new QWebChannel(webview->page());
+        bridge = new ExternalBridge(this, channel);
+
+        QApplication::instance()->installEventFilter(window);
+        window->setCentralWidget(webview);
+        window->resize(static_cast<int>(width), static_cast<int>(height));
+
+        const auto executableDirectory = std::filesystem::canonical("/proc/self/exe").parent_path();
+        if (auto iconPath =
+                firstExistingPath({"/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png",
+                                   "/usr/share/pixmaps/soundux.png", executableDirectory / "assets" / "soundux.png",
+                                   executableDirectory.parent_path() / "assets" / "soundux.png"}))
+        {
+            window->setWindowIcon(QIcon(QString::fromStdString(iconPath->string())));
+        }
+
+        channel->registerObject(QStringLiteral("external"), bridge);
+        webview->page()->setWebChannel(channel);
+        webview->page()->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessFileUrls, true);
+        webview->page()->settings()->setAttribute(QWebEngineSettings::LocalContentCanAccessRemoteUrls, true);
+
+        if (auto webChannelScript = firstExistingPath(
+                {"/usr/share/qt6/webchannel/qwebchannel.js", "/usr/share/qt5/qtwebchannel/qwebchannel.js"}))
+        {
+            installScript("qt-qwebchannel", readFile(*webChannelScript));
+        }
+        installScript(bridgeScriptName, bridgeScript);
+        injectCode(setupRpc);
+
+        QObject::connect(webview, &QWebEngineView::loadFinished,
+                         [this]([[maybe_unused]] bool ok) { onNavigate(webview->url().toString().toStdString()); });
+    }
+
+    Window::Window([[maybe_unused]] const std::string &identifier, std::size_t width, std::size_t height)
+        : Window(width, height)
+    {
+    }
+
+    Window::~Window()
+    {
+        destroyNativeWindow();
+    }
+
+    void Window::destroyNativeWindow()
+    {
+        if (window && QApplication::instance())
+        {
+            QApplication::instance()->removeEventFilter(window);
+        }
+
+        if (webview)
+        {
+            webview->stop();
+            if (webview->page())
+            {
+                webview->page()->setWebChannel(nullptr);
+            }
+            delete webview;
+            webview = nullptr;
+        }
+
+        if (window)
+        {
+            delete window;
+            window = nullptr;
+        }
+
+        channel = nullptr;
+        bridge = nullptr;
+    }
+
+    void Window::runOnUiThread(std::function<void()> func)
+    {
+        QTimer::singleShot(0, QApplication::instance(), [func = std::move(func)] { func(); });
+    }
+
+    void Window::installScript(const std::string &name, const std::string &code)
+    {
+        QWebEngineScript script;
+        script.setName(QString::fromStdString(name));
+        script.setSourceCode(QString::fromStdString(code));
+        script.setInjectionPoint(QWebEngineScript::DocumentCreation);
+        script.setWorldId(QWebEngineScript::MainWorld);
+        script.setRunsOnSubFrames(true);
+        webview->page()->scripts().insert(script);
+    }
+
+    void Window::show()
+    {
+        BaseWindow::show();
+        window->show();
+        window->activateWindow();
+    }
+
+    void Window::hide()
+    {
+        BaseWindow::hide();
+        window->hide();
+    }
+
+    void Window::run()
+    {
+        QApplication::exec();
+    }
+
+    void Window::exit()
+    {
+        runOnUiThread([this] {
+            destroyNativeWindow();
+            QApplication::quit();
+        });
+    }
+
+    void Window::setUrl(std::string newUrl)
+    {
+        BaseWindow::setUrl(newUrl);
+        webview->setUrl(QUrl(QString::fromStdString(url)));
+    }
+
+    std::string Window::getUrl()
+    {
+        return webview->url().toString().toStdString();
+    }
+
+    void Window::setTitle(std::string newTitle)
+    {
+        BaseWindow::setTitle(newTitle);
+        window->setWindowTitle(QString::fromStdString(title));
+    }
+
+    void Window::setSize(std::size_t newWidth, std::size_t newHeight)
+    {
+        BaseWindow::setSize(newWidth, newHeight);
+        window->resize(static_cast<int>(width), static_cast<int>(height));
+    }
+
+    void Window::enableDevTools([[maybe_unused]] bool state) {}
+
+    void Window::runCode(const std::string &code)
+    {
+        runOnUiThread([this, code] { webview->page()->runJavaScript(QString::fromStdString(code)); });
+    }
+
+    void Window::injectCode(const std::string &code)
+    {
+        installScript("soundux-script-" + std::to_string(webview->page()->scripts().toList().size()), code);
+    }
+
+    void Window::handleExternalInvoke(const QString &message)
+    {
+        handleRawCallRequest(message.toStdString());
+    }
+
+    bool Window::handleClose()
+    {
+        return onClose();
+    }
+
+    void Window::handleKeyEvent(int key, bool pressed)
+    {
+        onKeyEvent(key, pressed);
+    }
+
+    void Window::handleResize(std::size_t width, std::size_t height)
+    {
+        onResize(width, height);
+    }
+} // namespace Webview
+#else
 #include <stdexcept>
 
 Webview::Window::Window(std::size_t width, std::size_t height) : BaseWindow("", width, height)
@@ -218,5 +542,6 @@ void Webview::Window::onUriRequested(WebKitURISchemeRequest *request, [[maybe_un
         }
     }
 }
+#endif
 #endif
 #endif

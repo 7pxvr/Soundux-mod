@@ -34,6 +34,7 @@ namespace Webview
         std::function<bool()> closeCallback;
         std::function<void(const std::string &)> navigateCallback;
         std::function<void(std::size_t, std::size_t)> resizeCallback;
+        std::function<void(int, bool)> keyCallback;
 
         static const std::string setupRpc;
         static const std::string resolveCall;
@@ -51,6 +52,7 @@ namespace Webview
         virtual bool onClose();
         virtual void onNavigate(std::string);
         virtual void onResize(std::size_t, std::size_t);
+        virtual void onKeyEvent(int, bool);
 
 #if defined(WEBVIEW_EMBEDDED)
         Resource getResource(const std::string &);
@@ -131,5 +133,7 @@ namespace Webview
         virtual void setNavigateCallback(std::function<void(const std::string &)>);
         /// \effects Sets the resize-callback to the given callback
         virtual void setResizeCallback(std::function<void(std::size_t, std::size_t)>);
+        /// \effects Sets the key-callback to the given callback
+        virtual void setKeyCallback(std::function<void(int, bool)>);
     };
 } // namespace Webview
