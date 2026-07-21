@@ -8,13 +8,13 @@ httplib::Client VersionCheck::client("https://api.github.com");
 
 std::optional<Soundux::Objects::VersionStatus> VersionCheck::getStatus()
 {
-    auto githubTags = client.Get("/repos/Soundux/Soundux/tags");
+    auto githubTags = client.Get("/repos/7pxvr/Soundux-mod/tags");
 
     if (githubTags && githubTags->status == 200)
     {
         auto parsed = nlohmann::json::parse(githubTags->body, nullptr, false);
 
-        if (!parsed.is_discarded())
+        if (!parsed.is_discarded() && parsed.is_array() && !parsed.empty())
         {
             auto latestTag = parsed[0]["name"];
             if (!latestTag.is_null())
@@ -30,19 +30,11 @@ std::optional<Soundux::Objects::VersionStatus> VersionCheck::getStatus()
                 }
                 catch (const std::exception &e)
                 {
-                    Fancy::fancy.logTime().warning() << "Could not fetch version" << std::endl;
+                    return std::nullopt;
                 }
             }
-            Fancy::fancy.logTime().warning() << "Failed to find latest tag" << std::endl;
-        }
-        else
-        {
-            Fancy::fancy.logTime().warning() << "Failed to parse github response" << std::endl;
         }
     }
-    else
-    {
-        Fancy::fancy.logTime().warning() << "Request failed!" << std::endl;
-    }
+
     return std::nullopt;
 }
