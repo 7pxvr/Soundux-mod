@@ -2,8 +2,13 @@
 
 ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
 
-> [!NOTE]  
-> Soundux is undergoing a major rewrite right now, for more information see https://github.com/Soundux/Soundux/issues/591
+# VIBECODE WARNING
+
+This is made by ChatGPT Codex. I made it for my own personal use and for people who were interested in atleast somewhat working soundux.
+
+The webview is changed to Qt WebEngine and native wayland works better now.
+Application can stream right to microphone, without having to deal with audio devices each time
+The app automatically refreshes the applications and can remember them
 
 ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
 
