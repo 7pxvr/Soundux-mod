@@ -1,6 +1,6 @@
 pkgbase = soundux-mod
 	pkgdesc = A cross-platform soundboard with native Wayland-focused fixes
-	pkgver = 0.2.8.mod2
+	pkgver = 0.2.8.mod3
 	pkgrel = 1
 	url = https://github.com/7pxvr/Soundux-mod
 	arch = x86_64
@@ -28,7 +28,7 @@ pkgbase = soundux-mod
 	conflicts = soundux
 	conflicts = soundux-git
 	conflicts = soundux-mod-git
-	source = soundux-mod::git+https://github.com/7pxvr/Soundux-mod.git#tag=0.2.8.mod2
+	source = soundux-mod::git+https://github.com/7pxvr/Soundux-mod.git#tag=0.2.8.mod3
 	sha256sums = SKIP
 
 pkgname = soundux-mod

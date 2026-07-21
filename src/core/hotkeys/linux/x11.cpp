@@ -1,6 +1,6 @@
 #if defined(__linux__) && __has_include(<X11/Xlib.h>)
 #include "../hotkeys.hpp"
-#if defined(SOUNDUX_WEBVIEW_QT)
+#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
 #include <QCoreApplication>
 #include <QDBusArgument>
 #include <QDBusConnection>
@@ -41,7 +41,7 @@
 
 using namespace std::chrono_literals;
 
-#if defined(SOUNDUX_WEBVIEW_QT)
+#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
 namespace
 {
     using PortalShortcut = QPair<QString, QVariantMap>;
@@ -81,7 +81,7 @@ namespace Soundux::Objects
                (sessionType && std::string(sessionType) == "wayland");
     }
 
-#if defined(SOUNDUX_WEBVIEW_QT)
+#if defined(SOUNDUX_WEBVIEW_QT) || defined(Q_MOC_RUN)
     constexpr auto portalService = "org.freedesktop.portal.Desktop";
     constexpr auto portalPath = "/org/freedesktop/portal/desktop";
     constexpr auto globalShortcutsInterface = "org.freedesktop.portal.GlobalShortcuts";
