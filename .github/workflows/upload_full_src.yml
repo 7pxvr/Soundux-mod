@@ -1,16 +1,4 @@
-on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - "**/README.md"
-      - "**/compile_linux.yml"
-      - "**/compile_windows.yml"
-      - "**/build_flatpak.yml"
-      - "**/.all-contributorsrc"
-      - "**/windows_debug.yml"
-      - "**/upload_binaries_to_draft.yml"
-  pull_request:
-    branches: [master]
+on: workflow_dispatch
 
 name: Upload source with submodules
 jobs:
