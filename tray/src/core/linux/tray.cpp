@@ -1,7 +1,9 @@
 #if defined(__linux__)
 #include <core/linux/tray.hpp>
 #include <libappindicator/app-indicator.h>
+#include <filesystem>
 #include <stdexcept>
+#include <string>
 
 #include <components/button.hpp>
 #include <components/imagebutton.hpp>
@@ -19,7 +21,29 @@ Tray::Tray::Tray(std::string identifier, Icon icon) : BaseTray(std::move(identif
         return;
     }
 
-    appIndicator = app_indicator_new(this->identifier.c_str(), this->icon, APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+    std::string iconName = static_cast<const char *>(this->icon);
+    std::string iconThemePath;
+
+    const std::filesystem::path iconPath(iconName);
+    if (iconPath.is_absolute() && std::filesystem::exists(iconPath))
+    {
+        iconName = iconPath.stem().string();
+        iconThemePath = iconPath.parent_path().string();
+    }
+
+    if (!iconThemePath.empty())
+    {
+        appIndicator = app_indicator_new_with_path(this->identifier.c_str(), iconName.c_str(),
+                                                   APP_INDICATOR_CATEGORY_APPLICATION_STATUS, iconThemePath.c_str());
+    }
+    else
+    {
+        appIndicator =
+            app_indicator_new(this->identifier.c_str(), iconName.c_str(), APP_INDICATOR_CATEGORY_APPLICATION_STATUS);
+    }
+
+    app_indicator_set_title(appIndicator, "Soundux");
+    app_indicator_set_icon_full(appIndicator, iconName.c_str(), "Soundux");
     app_indicator_set_status(appIndicator, APP_INDICATOR_STATUS_ACTIVE);
 }
 
