@@ -69,22 +69,30 @@ namespace Soundux::Objects
 #if defined(__linux__)
         auto executableDirectory = std::filesystem::canonical("/proc/self/exe").parent_path();
         auto path = executableDirectory / "dist" / "index.html";
-        auto iconPath =
-            firstExistingPath({"/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png",
-                               "/usr/share/pixmaps/soundux.png", executableDirectory / "assets" / "soundux.png",
-                               executableDirectory.parent_path() / "assets" / "soundux.png"});
-        if (!iconPath)
+        if (isWaylandSession())
         {
-            Fancy::fancy.logTime().warning() << "Failed to find iconPath for tray icon" << std::endl;
+            Fancy::fancy.logTime().message() << "Wayland session detected - legacy AppIndicator tray is disabled"
+                                             << std::endl;
         }
+        else
+        {
+            auto iconPath =
+                firstExistingPath({"/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png",
+                                   "/usr/share/pixmaps/soundux.png", executableDirectory / "assets" / "soundux.png",
+                                   executableDirectory.parent_path() / "assets" / "soundux.png"});
+            if (!iconPath)
+            {
+                Fancy::fancy.logTime().warning() << "Failed to find iconPath for tray icon" << std::endl;
+            }
 
-        try
-        {
-            tray = std::make_shared<Tray::Tray>("io.github.Soundux", iconPath ? iconPath->u8string() : "soundux");
-        }
-        catch (const std::exception &e)
-        {
-            Fancy::fancy.logTime().warning() << "Failed to initialize tray icon: " << e.what() << std::endl;
+            try
+            {
+                tray = std::make_shared<Tray::Tray>("io.github.Soundux", iconPath ? iconPath->u8string() : "soundux");
+            }
+            catch (const std::exception &e)
+            {
+                Fancy::fancy.logTime().warning() << "Failed to initialize tray icon: " << e.what() << std::endl;
+            }
         }
 #endif
 
