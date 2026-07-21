@@ -636,13 +636,74 @@ namespace Soundux::Objects
             std::remove_if(settings.outputs.begin(), settings.outputs.end(),
                            [&](const auto &output) { return output.empty() || !seenOutputs.insert(output).second; }),
             settings.outputs.end());
-        if (settings.rememberApplications && settings.rememberedApplications.empty() &&
-            !oldSettings.rememberedApplications.empty())
+
+        std::set<std::string> seenDisabled;
+        settings.disabledApplications.erase(
+            std::remove_if(settings.disabledApplications.begin(), settings.disabledApplications.end(),
+                           [&](const auto &application) {
+                               return application.empty() || !seenDisabled.insert(application).second;
+                           }),
+            settings.disabledApplications.end());
+
+        if (!settings.allowMultipleOutputs && settings.outputs.size() > 1)
         {
-            settings.rememberedApplications = oldSettings.rememberedApplications;
+            Fancy::fancy.logTime().warning() << "Allow Multiple Outputs is off but got multiple output apps, "
+                                                "falling back to first output in list"
+                                             << std::endl;
+
+            settings.outputs = {settings.outputs.front()};
+        }
+
+        if (settings.rememberApplications)
+        {
+            if (!settings.useAsDefaultDevice && !oldSettings.useAsDefaultDevice &&
+                settings.outputs != oldSettings.outputs)
+            {
+                for (const auto &oldOutput : oldSettings.outputs)
+                {
+                    if (std::find(settings.outputs.begin(), settings.outputs.end(), oldOutput) ==
+                            settings.outputs.end() &&
+                        std::find(settings.disabledApplications.begin(), settings.disabledApplications.end(),
+                                  oldOutput) == settings.disabledApplications.end())
+                    {
+                        settings.disabledApplications.emplace_back(oldOutput);
+                    }
+                }
+
+                settings.disabledApplications.erase(
+                    std::remove_if(settings.disabledApplications.begin(), settings.disabledApplications.end(),
+                                   [&](const auto &application) {
+                                       return std::find(settings.outputs.begin(), settings.outputs.end(),
+                                                        application) != settings.outputs.end();
+                                   }),
+                    settings.disabledApplications.end());
+            }
+
+            if (settings.rememberedApplications.empty() && !oldSettings.rememberedApplications.empty())
+            {
+                settings.rememberedApplications = oldSettings.rememberedApplications;
+            }
+
+#if defined(__linux__)
+            if (Globals::gAudioBackend)
+            {
+                for (const auto &output : settings.outputs)
+                {
+                    if (auto app = Globals::gAudioBackend->getRecordingApp(output))
+                    {
+                        settings.rememberedApplications[app->application] = app->name;
+                    }
+                    else if (settings.rememberedApplications.find(output) == settings.rememberedApplications.end())
+                    {
+                        settings.rememberedApplications[output] = output;
+                    }
+                }
+            }
+#endif
         }
         if (!settings.rememberApplications)
         {
+            settings.disabledApplications.clear();
             settings.rememberedApplications.clear();
         }
         Globals::gSettings = settings;
@@ -729,15 +790,6 @@ namespace Soundux::Objects
             }
             if (settings.outputs != oldSettings.outputs)
             {
-                if (!settings.allowMultipleOutputs && settings.outputs.size() > 1)
-                {
-                    Fancy::fancy.logTime().warning() << "Allow Multiple Outputs is off but got multiple output apps, "
-                                                        "falling back to first output in list"
-                                                     << std::endl;
-
-                    settings.outputs = {settings.outputs.front()};
-                }
-
                 if (!Globals::gAudioBackend->stopSoundInput())
                 {
                     onError(Enums::ErrorCode::FailedToMoveBack);

@@ -71,8 +71,8 @@ namespace Soundux::Objects
         auto path = executableDirectory / "dist" / "index.html";
         if (isWaylandSession())
         {
-            Fancy::fancy.logTime().message() << "Wayland session detected - legacy AppIndicator tray is disabled"
-                                             << std::endl;
+            Fancy::fancy.logTime().message()
+                << "Wayland session detected - legacy AppIndicator tray is disabled" << std::endl;
         }
         else
         {
@@ -534,7 +534,16 @@ namespace Soundux::Objects
         if (!Globals::gSettings.useAsDefaultDevice && selectedOutputs.empty() && Globals::gSettings.outputs.empty() &&
             !outputs.empty())
         {
-            selectedOutputs.emplace_back(outputs.front());
+            auto defaultOutput = std::find_if(outputs.begin(), outputs.end(), [](const auto &output) {
+                return std::find(Globals::gSettings.disabledApplications.begin(),
+                                 Globals::gSettings.disabledApplications.end(),
+                                 output->application) == Globals::gSettings.disabledApplications.end();
+            });
+
+            if (defaultOutput != outputs.end())
+            {
+                selectedOutputs.emplace_back(*defaultOutput);
+            }
         }
 
         if (Globals::gAudioBackend && !Globals::gAudio.getPlayingSounds().empty())

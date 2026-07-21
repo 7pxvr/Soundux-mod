@@ -223,6 +223,7 @@ int main(int argc, char **arguments)
     if (!gConfig.settings.rememberApplications)
     {
         gConfig.settings.outputs.clear();
+        gConfig.settings.disabledApplications.clear();
         gConfig.settings.rememberedApplications.clear();
     }
     gConfig.save();

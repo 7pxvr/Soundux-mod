@@ -73,6 +73,19 @@ namespace Soundux::Objects
             {
                 try
                 {
+                    if (json.contains("settings") && json["settings"].is_object())
+                    {
+                        auto &settingsJson = json["settings"];
+                        for (const auto *key :
+                             {"allowMultipleOutputs", "autoRefreshAudioDevices", "rememberApplications"})
+                        {
+                            if (!settingsJson.contains(key))
+                            {
+                                settingsJson[key] = true;
+                            }
+                        }
+                    }
+
                     auto conf = json.get<Config>();
                     data.set(conf.data);
                     settings = conf.settings;

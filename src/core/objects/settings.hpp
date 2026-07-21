@@ -20,6 +20,7 @@ namespace Soundux
             std::vector<int> stopHotkey;
 
             std::vector<std::string> outputs;
+            std::vector<std::string> disabledApplications;
             std::map<std::string, std::string> rememberedApplications;
             std::uint32_t selectedTab = 0;
 
@@ -27,7 +28,7 @@ namespace Soundux
             int localVolume = 50;
             bool syncVolumes = false;
 
-            bool allowMultipleOutputs = false;
+            bool allowMultipleOutputs = true;
             bool autoRefreshAudioDevices = true;
             bool rememberApplications = true;
             bool useAsDefaultDevice = false;
