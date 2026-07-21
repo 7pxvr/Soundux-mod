@@ -89,7 +89,7 @@ namespace Soundux::Objects
             return *identity;
         }
 
-        return binary.empty() && pid > 0 ? fallback : binary;
+        return binary.empty() ? fallback : binary;
     }
 
     static std::uint32_t encodePipeWireVersion(const std::string &rawVersion)
