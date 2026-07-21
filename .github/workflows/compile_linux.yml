@@ -31,7 +31,7 @@ jobs:
         run: "sudo add-apt-repository ppa:pipewire-debian/pipewire-upstream"
 
       - name: Install build dependencies
-        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev libqt6webchannel6-dev libx11-dev libpipewire-0.3-dev libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev"
+        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev qt6-webengine-dev-tools libqt6webchannel6-dev libx11-dev libpipewire-0.3-dev libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev"
 
       - name: Compile
         run: "mkdir build && cd build && cmake .. && cmake --build . --config Release"
