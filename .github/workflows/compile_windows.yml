@@ -26,7 +26,7 @@ jobs:
         uses: NuGet/setup-nuget@v1.0.5
 
       - name: Checkout
-        uses: actions/checkout@v2.3.4
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -42,7 +42,7 @@ jobs:
         run: "mkdir build && cd build && cmake .. -DEMBED_PATH=src/ui/impl/webview/lib/webviewpp/embed-helper/build/Release && cmake --build . --config Release"
 
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v2.2.4
+        uses: actions/upload-artifact@v4
         with:
           name: Release
           path: build/Release
@@ -52,19 +52,14 @@ jobs:
         with:
           args: install innosetup -y
 
-      - name: Install Sed
-        uses: crazy-max/ghaction-chocolatey@v1.6.0
-        with:
-          args: install sed -y
-
-      - name: Run Sed
-        run: '&"${Env:ProgramData}\chocolatey\bin\sed.exe" -i ''s%\$PATH%D:\\a\\Soundux\\Soundux%'' deployment/innosetup/Soundux.iss'
+      - name: Update installer source path
+        run: (Get-Content deployment/innosetup/Soundux.iss) -replace '\$PATH', $Env:GITHUB_WORKSPACE | Set-Content deployment/innosetup/Soundux.iss
 
       - name: Run InnoSetup
         run: '&"${Env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" deployment/innosetup/Soundux.iss'
 
       - name: Upload Installer Artifact
-        uses: actions/upload-artifact@v2.2.4
+        uses: actions/upload-artifact@v4
         with:
           name: Installer
           path: deployment/innosetup/Output/setup.exe

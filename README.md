@@ -165,8 +165,8 @@ sudo dnf install git webkit2gtk3 cmake llvm clang libXi-devel gtk3-devel webkit2
 ## 👷 Build
 Clone the repository
 ```sh
-git clone https://github.com/Soundux/Soundux.git
-cd Soundux
+git clone https://github.com/7pxvr/Soundux-mod.git
+cd Soundux-mod
 git submodule update --init --recursive
 ```
 Create a build folder and start compilation

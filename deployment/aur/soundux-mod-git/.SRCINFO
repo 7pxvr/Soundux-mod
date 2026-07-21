@@ -1,0 +1,35 @@
+pkgbase = soundux-mod-git
+	pkgdesc = A cross-platform soundboard with native Wayland-focused fixes
+	pkgver = 0.2.8.r1435.gfb548ac
+	pkgrel = 1
+	url = https://github.com/7pxvr/Soundux-mod
+	arch = x86_64
+	license = GPL-3.0-only
+	makedepends = cmake
+	makedepends = git
+	makedepends = ninja
+	makedepends = pkgconf
+	depends = brotli
+	depends = gtk3
+	depends = hicolor-icon-theme
+	depends = libappindicator-gtk3
+	depends = libpulse
+	depends = libwnck3
+	depends = libx11
+	depends = libxi
+	depends = libxtst
+	depends = openssl
+	depends = pipewire
+	depends = qt6-base
+	depends = qt6-webchannel
+	depends = qt6-webengine
+	depends = zlib
+	provides = soundux
+	provides = soundux-mod
+	conflicts = soundux
+	conflicts = soundux-git
+	conflicts = soundux-mod
+	source = soundux-mod-git::git+https://github.com/7pxvr/Soundux-mod.git#branch=master
+	sha256sums = SKIP
+
+pkgname = soundux-mod-git

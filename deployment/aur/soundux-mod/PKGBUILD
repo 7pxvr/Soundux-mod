@@ -1,0 +1,55 @@
+# Maintainer: 7pxvr
+
+pkgname=soundux-mod
+pkgver=0.2.8.mod1
+pkgrel=1
+pkgdesc="A cross-platform soundboard with native Wayland-focused fixes"
+arch=('x86_64')
+url="https://github.com/7pxvr/Soundux-mod"
+license=('GPL-3.0-only')
+depends=(
+  'brotli'
+  'gtk3'
+  'hicolor-icon-theme'
+  'libappindicator-gtk3'
+  'libpulse'
+  'libwnck3'
+  'libx11'
+  'libxi'
+  'libxtst'
+  'openssl'
+  'pipewire'
+  'qt6-base'
+  'qt6-webchannel'
+  'qt6-webengine'
+  'zlib'
+)
+makedepends=(
+  'cmake'
+  'git'
+  'ninja'
+  'pkgconf'
+)
+provides=('soundux')
+conflicts=('soundux' 'soundux-git' 'soundux-mod-git')
+source=("${pkgname}::git+https://github.com/7pxvr/Soundux-mod.git#tag=${pkgver}")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "${pkgname}"
+  git submodule update --init --recursive
+}
+
+build() {
+  cmake -S "${pkgname}" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release
+  cmake --build build
+}
+
+package() {
+  DESTDIR="${pkgdir}" cmake --install build
+
+  install -Dm644 "${pkgname}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -d "${pkgdir}/usr/bin"
+  ln -s /opt/soundux/soundux "${pkgdir}/usr/bin/soundux"
+}
