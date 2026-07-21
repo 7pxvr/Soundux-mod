@@ -87,6 +87,11 @@ add_subdirectory(lib/traypp EXCLUDE_FROM_ALL)
 add_subdirectory(lib/guardpp)
 add_subdirectory(lib/lockpp)
 
+get_target_property(webviewInterfaceDefinitions webview INTERFACE_COMPILE_DEFINITIONS)
+if(webviewInterfaceDefinitions)
+    target_compile_definitions(soundux PRIVATE ${webviewInterfaceDefinitions})
+endif()
+
 add_backward(soundux)
 
 if (WIN32)
