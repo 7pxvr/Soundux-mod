@@ -14,6 +14,9 @@ on:
     branches: [master]
 
 name: Build Pacman Package
+permissions:
+  contents: read
+
 jobs:
   build-pacman:
     runs-on: ubuntu-22.04

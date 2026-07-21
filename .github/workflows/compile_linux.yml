@@ -1,18 +1,4 @@
-on:
-  push:
-    branches: [master]
-    paths-ignore:
-      - "**/README.md"
-      - "**/compile_windows.yml"
-      - "**/compile_arch.yml"
-      - "**/build_flatpak.yml"
-      - "**/.all-contributorsrc"
-      - "**/upload_full_src.yml"
-      - "**/windows_debug.yml"
-      - "**/upload_binaries_to_draft.yml"
-      - "deployment/pacman/**"
-  pull_request:
-    branches: [master]
+on: workflow_dispatch
 
 name: Build on Linux
 jobs:
