@@ -29,7 +29,7 @@ jobs:
           path: Soundux
 
       - name: Install build dependencies
-        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev qt6-webchannel-dev libx11-dev libpipewire-0.3-dev ninja-build libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev"
+        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev libqt6webchannel6-dev libx11-dev libpipewire-0.3-dev ninja-build libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev"
 
       - name: Fetch Required External Dependencies
         run: 'cd Soundux && cmake -GNinja . && find build -not -name "_deps" -delete && rm CMakeCache.txt'

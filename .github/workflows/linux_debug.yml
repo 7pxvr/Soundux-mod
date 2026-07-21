@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Install build dependencies
-        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev qt6-webchannel-dev libx11-dev libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev libpipewire-0.3-dev"
+        run: "sudo apt-get update && sudo apt-get install git build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-webengine-dev libqt6webchannel6-dev libx11-dev libxi-dev libwnck-3-dev libappindicator3-dev libpulse-dev libpipewire-0.3-dev"
 
       - name: Checkout
         uses: actions/checkout@v4
