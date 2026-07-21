@@ -1,13 +1,67 @@
 #if defined(__linux__)
 #include "pulseaudio.hpp"
+#include "../app_name.hpp"
 #include "forward.hpp"
+#include <algorithm>
+#include <cctype>
 #include <core/global/globals.hpp>
 #include <cstring>
 #include <exception>
 #include <fancy.hpp>
+#include <vector>
 
 namespace Soundux::Objects
 {
+    static std::string formatAppName(std::uint32_t pid, const char *appName, const char *binary,
+                                     const char *mediaName = nullptr, const std::vector<std::string> &identifiers = {})
+    {
+        std::string app = appName ? appName : "";
+        std::string bin = binary ? binary : "";
+        std::string media = mediaName ? mediaName : "";
+        auto displayName = app.empty() ? bin : app;
+        if (auto resolvedName = LinuxAudioAppName::resolve(pid, bin, identifiers))
+        {
+            displayName = *resolvedName;
+        }
+        if (!media.empty() && media != displayName)
+        {
+            const auto lowerMediaName = LinuxAudioAppName::lower(media);
+            if (lowerMediaName.find("recordstream") == std::string::npos &&
+                lowerMediaName.find("electron") == std::string::npos)
+            {
+                displayName = media;
+            }
+        }
+
+        if (!bin.empty() && !displayName.empty() && bin != displayName)
+        {
+            auto lowerBinary = LinuxAudioAppName::lower(bin);
+            auto lowerDisplay = LinuxAudioAppName::lower(displayName);
+
+            if (lowerDisplay.find(lowerBinary) == std::string::npos)
+            {
+                return displayName + " (" + bin + ")";
+            }
+        }
+
+        return displayName;
+    }
+
+    static std::vector<std::string> appIdentifiers(pa_proplist *proplist)
+    {
+        std::vector<std::string> identifiers;
+        for (const auto *property :
+             {"application.id", "application.desktop", "application.icon_name", "flatpak.app.id"})
+        {
+            if (auto *identifier = PulseApi::proplist_gets(proplist, property); identifier)
+            {
+                identifiers.emplace_back(identifier);
+            }
+        }
+
+        return identifiers;
+    }
+
     bool PulseAudio::setup()
     {
         if (!PulseApi::setup())
@@ -242,9 +296,14 @@ namespace Soundux::Objects
 
                     app.id = info->index;
                     app.sink = info->sink;
-                    app.name = PulseApi::proplist_gets(info->proplist, "application.name");
+                    auto *binary = PulseApi::proplist_gets(info->proplist, "application.process.binary");
                     app.pid = std::stoi(PulseApi::proplist_gets(info->proplist, "application.process.id"));
-                    app.application = PulseApi::proplist_gets(info->proplist, "application.process.binary");
+                    auto identifiers = appIdentifiers(info->proplist);
+                    app.name =
+                        formatAppName(app.pid, PulseApi::proplist_gets(info->proplist, "application.name"), binary,
+                                      PulseApi::proplist_gets(info->proplist, "media.name"), identifiers);
+                    app.application = LinuxAudioAppName::identity(app.pid, binary ? binary : "", identifiers)
+                                          .value_or(binary ? binary : app.name);
                     reinterpret_cast<decltype(rtn) *>(userData)->emplace_back(std::make_shared<PulsePlaybackApp>(app));
                 }
             },
@@ -270,9 +329,14 @@ namespace Soundux::Objects
 
                     app.id = info->index;
                     app.source = info->source;
-                    app.name = PulseApi::proplist_gets(info->proplist, "application.name");
+                    auto *binary = PulseApi::proplist_gets(info->proplist, "application.process.binary");
                     app.pid = std::stoi(PulseApi::proplist_gets(info->proplist, "application.process.id"));
-                    app.application = PulseApi::proplist_gets(info->proplist, "application.process.binary");
+                    auto identifiers = appIdentifiers(info->proplist);
+                    app.name =
+                        formatAppName(app.pid, PulseApi::proplist_gets(info->proplist, "application.name"), binary,
+                                      PulseApi::proplist_gets(info->proplist, "media.name"), identifiers);
+                    app.application = LinuxAudioAppName::identity(app.pid, binary ? binary : "", identifiers)
+                                          .value_or(binary ? binary : app.name);
                     reinterpret_cast<decltype(rtn) *>(userData)->emplace_back(std::make_shared<PulseRecordingApp>(app));
                 }
             },

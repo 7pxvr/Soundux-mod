@@ -28,6 +28,9 @@ namespace Soundux
             void init();
             void stop();
             void shouldNotify(bool);
+#if defined(__linux__)
+            void refreshWaylandGlobalShortcuts();
+#endif
 
             void onKeyUp(int);
             void onKeyDown(int);

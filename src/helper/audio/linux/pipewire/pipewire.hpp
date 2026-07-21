@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <var_guard.hpp>
+#include <vector>
 
 #include <pipewire/extensions/metadata.h>
 #include <pipewire/global.h>
@@ -45,7 +46,9 @@ namespace Soundux
             std::uint32_t pid;
             std::string rawName;
             bool isMonitor = false;
+            std::string mediaName;
             std::string applicationBinary;
+            std::vector<std::string> applicationIdentifiers;
             std::map<std::uint32_t, Port> ports;
         };
 
@@ -71,11 +74,16 @@ namespace Soundux
             pw_main_loop *loop;
             pw_context *context;
             pw_registry *registry;
+            pw_metadata *metadata = nullptr;
             std::uint32_t version = 0;
             std::string defaultMicrophone;
+            std::string defaultMicrophoneBeforeSoundux;
 
             spa_hook registryListener;
             pw_registry_events registryEvents;
+            spa_hook metadataListener;
+            pw_metadata_events metadataEvents;
+            bool usingSounduxAsDefaultSource = false;
 
           private:
             sxl::var_guard<std::map<std::uint32_t, Node>> nodes;

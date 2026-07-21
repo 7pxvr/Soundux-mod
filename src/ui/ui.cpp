@@ -1,4 +1,5 @@
 #include "ui.hpp"
+#include <algorithm>
 #include <core/global/globals.hpp>
 #include <cstdint>
 #include <fancy.hpp>
@@ -9,9 +10,40 @@
 #include <helper/misc/misc.hpp>
 #include <nfd.hpp>
 #include <optional>
+#include <set>
+#if defined(__linux__) && defined(SOUNDUX_WEBVIEW_QT)
+#include <QFileDialog>
+#include <QString>
+#endif
 
 namespace Soundux::Objects
 {
+#if defined(__linux__)
+    static bool inputSoundToActiveRecordingApps()
+    {
+        if (!Globals::gAudioBackend)
+        {
+            return false;
+        }
+
+        bool success = true;
+        for (const auto &app : Globals::gAudioBackend->getRecordingApps())
+        {
+            if (!app || app->application.find("soundux") != std::string::npos)
+            {
+                continue;
+            }
+
+            if (!Globals::gAudioBackend->inputSoundTo(app))
+            {
+                success = false;
+            }
+        }
+
+        return success;
+    }
+#endif
+
     void Window::setup()
     {
         NFD::Init();
@@ -133,6 +165,13 @@ namespace Soundux::Objects
         static std::string lastPath = std::getenv("HOME"); // NOLINT
 #endif
 
+#if defined(__linux__) && defined(SOUNDUX_WEBVIEW_QT)
+        auto selectedPath = QFileDialog::getExistingDirectory(
+            nullptr, QStringLiteral("Add tab"), QString::fromStdString(lastPath), QFileDialog::ShowDirsOnly);
+        if (!selectedPath.isEmpty())
+        {
+            std::string path = selectedPath.toStdString();
+#else
         nfdnchar_t *outpath = {};
         auto result = NFD::PickFolder(outpath, lastPath.empty() ? nullptr : lastPath.c_str());
 
@@ -145,6 +184,7 @@ namespace Soundux::Objects
             std::string path(outpath);
 #endif
             NFD_FreePathN(outpath);
+#endif
 
             if (std::filesystem::exists(path))
             {
@@ -234,6 +274,15 @@ namespace Soundux::Objects
             if (playingSound && remotePlayingSound)
             {
                 groupedSounds->insert({playingSound->id, remotePlayingSound->id});
+                if (Globals::gSettings.useAsDefaultDevice && Globals::gAudioBackend)
+                {
+                    if (!inputSoundToActiveRecordingApps())
+                    {
+                        onError(Enums::ErrorCode::FailedToMoveToSink);
+                    }
+
+                    return *playingSound;
+                }
                 if (Globals::gSettings.outputs.empty() && playingSound)
                 {
                     return *playingSound;
@@ -582,6 +631,20 @@ namespace Soundux::Objects
     Settings Window::changeSettings(Settings settings)
     {
         auto oldSettings = Globals::gSettings;
+        std::set<std::string> seenOutputs;
+        settings.outputs.erase(
+            std::remove_if(settings.outputs.begin(), settings.outputs.end(),
+                           [&](const auto &output) { return output.empty() || !seenOutputs.insert(output).second; }),
+            settings.outputs.end());
+        if (settings.rememberApplications && settings.rememberedApplications.empty() &&
+            !oldSettings.rememberedApplications.empty())
+        {
+            settings.rememberedApplications = oldSettings.rememberedApplications;
+        }
+        if (!settings.rememberApplications)
+        {
+            settings.rememberedApplications.clear();
+        }
         Globals::gSettings = settings;
 
         if ((settings.localVolume != oldSettings.localVolume || settings.remoteVolume != oldSettings.remoteVolume) &&
@@ -639,6 +702,10 @@ namespace Soundux::Objects
             }
             if (!settings.useAsDefaultDevice && oldSettings.useAsDefaultDevice)
             {
+                if (!Globals::gAudioBackend->stopSoundInput())
+                {
+                    onError(Enums::ErrorCode::FailedToMoveBack);
+                }
                 if (!Globals::gAudioBackend->revertDefault())
                 {
                     onError(Enums::ErrorCode::FailedToRevertDefaultSource);
@@ -654,6 +721,10 @@ namespace Soundux::Objects
                 if (!Globals::gAudioBackend->useAsDefault())
                 {
                     onError(Enums::ErrorCode::FailedToSetDefaultSource);
+                }
+                if (!Globals::gAudio.getPlayingSounds().empty() && !inputSoundToActiveRecordingApps())
+                {
+                    onError(Enums::ErrorCode::FailedToMoveToSink);
                 }
             }
             if (settings.outputs != oldSettings.outputs)
@@ -712,6 +783,12 @@ namespace Soundux::Objects
             }
         }
 #endif
+#if defined(__linux__)
+        if (settings.stopHotkey != oldSettings.stopHotkey)
+        {
+            Globals::gHotKeys.refreshWaylandGlobalShortcuts();
+        }
+#endif
         return Globals::gSettings;
     }
     void Window::onHotKeyReceived([[maybe_unused]] const std::vector<int> &keys)
@@ -759,6 +836,9 @@ namespace Soundux::Objects
         if (sound)
         {
             sound->get().hotkeys = hotkeys;
+#if defined(__linux__)
+            Globals::gHotKeys.refreshWaylandGlobalShortcuts();
+#endif
             return sound->get();
         }
         Fancy::fancy.logTime().failure() << "Failed to set hotkey for sound " << id << ", sound does not exist"
@@ -797,11 +877,16 @@ namespace Soundux::Objects
                     continue;
                 }
 
-                auto item = std::find_if(std::begin(uniqueStreams), std::end(uniqueStreams),
-                                         [&](const auto &_stream) { return stream->name == _stream->name; });
+                auto item = std::find_if(std::begin(uniqueStreams), std::end(uniqueStreams), [&](const auto &_stream) {
+                    return stream->application == _stream->application;
+                });
                 if (stream && item == std::end(uniqueStreams))
                 {
                     auto iconStream = std::make_shared<IconRecordingApp>(*stream);
+                    if (Globals::gSettings.rememberApplications)
+                    {
+                        Globals::gSettings.rememberedApplications[iconStream->application] = iconStream->name;
+                    }
                     if (Globals::gIcons)
                     {
                         if (auto pulseApp = std::dynamic_pointer_cast<PulseRecordingApp>(stream); pulseApp)
@@ -828,6 +913,33 @@ namespace Soundux::Objects
             }
         }
 
+        if (Globals::gSettings.rememberApplications)
+        {
+            for (const auto &application : Globals::gSettings.outputs)
+            {
+                auto item = std::find_if(std::begin(uniqueStreams), std::end(uniqueStreams),
+                                         [&](const auto &_stream) { return application == _stream->application; });
+                if (item != std::end(uniqueStreams))
+                {
+                    continue;
+                }
+
+                RecordingApp remembered;
+                remembered.application = application;
+                if (auto rememberedName = Globals::gSettings.rememberedApplications.find(application);
+                    rememberedName != Globals::gSettings.rememberedApplications.end())
+                {
+                    remembered.name = rememberedName->second;
+                }
+                else
+                {
+                    remembered.name = application;
+                }
+
+                uniqueStreams.emplace_back(std::make_shared<IconRecordingApp>(remembered));
+            }
+        }
+
         return uniqueStreams;
     }
     std::vector<std::shared_ptr<IconPlaybackApp>> Window::getPlayback()
@@ -845,8 +957,9 @@ namespace Soundux::Objects
                     continue;
                 }
 
-                auto item = std::find_if(std::begin(uniqueStreams), std::end(uniqueStreams),
-                                         [&](const auto &_stream) { return stream->name == _stream->name; });
+                auto item = std::find_if(std::begin(uniqueStreams), std::end(uniqueStreams), [&](const auto &_stream) {
+                    return stream->application == _stream->application;
+                });
                 if (stream && item == std::end(uniqueStreams))
                 {
                     auto iconStream = std::make_shared<IconPlaybackApp>(*stream);

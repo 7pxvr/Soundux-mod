@@ -12,6 +12,7 @@ namespace Soundux
         class YoutubeDl
         {
             bool isAvailable = false;
+            std::string downloaderBinary = "youtube-dl";
             static const std::regex urlRegex;
             std::optional<TinyProcessLib::Process> currentDownload;
 

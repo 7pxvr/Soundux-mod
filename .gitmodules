@@ -12,11 +12,12 @@
 	url = https://github.com/btzy/nativefiledialog-extended
 [submodule "src/ui/impl/webview/lib/soundux-ui"]
 	path = src/ui/impl/webview/lib/soundux-ui
-	url = https://github.com/Soundux/soundux-ui/
-	branch = build
+	url = https://github.com/7pxvr/Soundux
+	branch = submodule-soundux-ui-wayland
 [submodule "src/ui/impl/webview/lib/webviewpp"]
 	path = src/ui/impl/webview/lib/webviewpp
-	url = https://github.com/Soundux/webviewpp
+	url = https://github.com/7pxvr/Soundux
+	branch = submodule-webviewpp-wayland
 [submodule "lib/tiny-process-library"]
 	path = lib/tiny-process-library
 	url = https://gitlab.com/eidheim/tiny-process-library.git
@@ -25,7 +26,8 @@
 	url = https://github.com/yhirose/cpp-httplib
 [submodule "lib/traypp"]
 	path = lib/traypp
-	url = https://github.com/Soundux/traypp
+	url = https://github.com/7pxvr/Soundux
+	branch = submodule-traypp-wayland
 [submodule "deployment/flatpak/shared-modules"]
 	path = deployment/flatpak/shared-modules
 	url = https://github.com/flathub/shared-modules

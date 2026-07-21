@@ -11,17 +11,30 @@ namespace Soundux::Objects
 
     void YoutubeDl::setup()
     {
-        TinyProcessLib::Process ytdlVersion(
-            "youtube-dl --version", "", []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {},
-            []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {});
+        bool downloaderAvailable = false;
+        for (const auto &candidate : {"yt-dlp", "youtube-dl"})
+        {
+            TinyProcessLib::Process downloaderVersion(
+                std::string(candidate) + " --version", "",
+                []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {},
+                []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {});
+
+            if (downloaderVersion.get_exit_status() == 0)
+            {
+                downloaderBinary = candidate;
+                downloaderAvailable = true;
+                break;
+            }
+        }
+
         TinyProcessLib::Process ffmpegVersion(
             "ffmpeg -version", "", []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {},
             []([[maybe_unused]] const char *message, [[maybe_unused]] std::size_t size) {});
 
-        isAvailable = ytdlVersion.get_exit_status() == 0 && ffmpegVersion.get_exit_status() == 0;
+        isAvailable = downloaderAvailable && ffmpegVersion.get_exit_status() == 0;
         if (!isAvailable)
         {
-            Fancy::fancy.logTime().warning() << "youtube-dl or ffmpeg is not available!" << std::endl;
+            Fancy::fancy.logTime().warning() << "yt-dlp/youtube-dl or ffmpeg is not available!" << std::endl;
         }
     }
     std::optional<nlohmann::json> YoutubeDl::getInfo(const std::string &url) const
@@ -37,7 +50,7 @@ namespace Soundux::Objects
             return std::nullopt;
         }
 
-        auto [result, success] = Helpers::getResultCompact("youtube-dl -i -j \"" + url + "\"");
+        auto [result, success] = Helpers::getResultCompact(downloaderBinary + " -i -j \"" + url + "\"");
         if (success)
         {
             auto json = nlohmann::json::parse(result, nullptr, false);
@@ -65,7 +78,7 @@ namespace Soundux::Objects
             return j;
         }
 
-        Fancy::fancy.logTime().warning() << "Failed to get info from youtube-dl" << std::endl;
+        Fancy::fancy.logTime().warning() << "Failed to get info from " << downloaderBinary << std::endl;
         Globals::gGui->onError(Enums::ErrorCode::YtdlInformationUnknown);
         return std::nullopt;
     }
@@ -99,8 +112,8 @@ namespace Soundux::Objects
                 currentDownload.reset();
             }
 
-            currentDownload.emplace("youtube-dl --extract-audio --audio-format mp3 --no-mtime \"" + url + "\" -o \"" +
-                                        currentTab->path + "/%(title)s.%(ext)s" + "\"",
+            currentDownload.emplace(downloaderBinary + " --extract-audio --audio-format mp3 --no-mtime \"" + url +
+                                        "\" -o \"" + currentTab->path + "/%(title)s.%(ext)s" + "\"",
                                     "", [](const char *rawData, std::size_t dataLen) {
                                         std::string data(rawData, dataLen);
                                         static const std::regex progressRegex(R"(([0-9.,]+)%.*(ETA (.+)))");

@@ -1,4 +1,6 @@
 #pragma once
+#include <atomic>
+#include <thread>
 #include <tray.hpp>
 #include <ui/ui.hpp>
 #include <webview.hpp>
@@ -12,6 +14,11 @@ namespace Soundux
           private:
             std::shared_ptr<Tray::Tray> tray;
             std::shared_ptr<Webview::Window> webview;
+#if defined(__linux__)
+            std::thread audioAppRefreshThread;
+            std::atomic<bool> stopAudioAppRefresh = false;
+            std::string audioAppSignature;
+#endif
 
             bool onClose();
             void exposeFunctions();
@@ -19,6 +26,11 @@ namespace Soundux
 
             void setupTray();
             void fetchTranslations();
+#if defined(__linux__)
+            void refreshAudioApps(bool force = false);
+            void startAudioAppRefresh();
+            void stopAudioAppRefreshThread();
+#endif
 
             void onAllSoundsFinished() override;
             Settings changeSettings(Settings newSettings) override;

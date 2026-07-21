@@ -1,6 +1,9 @@
 #include "webview.hpp"
+#include <algorithm>
+#include <chrono>
 #include <core/global/globals.hpp>
 #include <cstdint>
+#include <exception>
 #include <fancy.hpp>
 #include <filesystem>
 #include <helper/audio/linux/pulseaudio/pulseaudio.hpp>
@@ -9,6 +12,7 @@
 #include <helper/systeminfo/systeminfo.hpp>
 #include <helper/version/check.hpp>
 #include <helper/ytdl/youtube-dl.hpp>
+#include <sstream>
 
 #ifdef _WIN32
 #include "../../assets/icon.h"
@@ -17,8 +21,32 @@
 #include <windows.h>
 #endif
 
+using namespace std::chrono_literals;
+
 namespace Soundux::Objects
 {
+    static bool isWaylandSession()
+    {
+        const auto *waylandDisplay = std::getenv("WAYLAND_DISPLAY"); // NOLINT
+        const auto *sessionType = std::getenv("XDG_SESSION_TYPE");   // NOLINT
+
+        return (waylandDisplay && std::string(waylandDisplay).length() > 0) ||
+               (sessionType && std::string(sessionType) == "wayland");
+    }
+
+    static std::optional<std::filesystem::path> firstExistingPath(std::initializer_list<std::filesystem::path> paths)
+    {
+        for (const auto &path : paths)
+        {
+            if (std::filesystem::exists(path))
+            {
+                return path;
+            }
+        }
+
+        return std::nullopt;
+    }
+
     void WebView::setup()
     {
         Window::setup();
@@ -39,23 +67,25 @@ namespace Soundux::Objects
         webview->disableAcceleratorKeys(true);
 #endif
 #if defined(__linux__)
-        auto path = std::filesystem::canonical("/proc/self/exe").parent_path() / "dist" / "index.html";
-        std::filesystem::path iconPath;
-
-        if (std::filesystem::exists("/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png"))
-        {
-            iconPath = "/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png";
-        }
-        else if (std::filesystem::exists("/usr/share/pixmaps/soundux.png"))
-        {
-            iconPath = "/usr/share/pixmaps/soundux.png";
-        }
-        else
+        auto executableDirectory = std::filesystem::canonical("/proc/self/exe").parent_path();
+        auto path = executableDirectory / "dist" / "index.html";
+        auto iconPath =
+            firstExistingPath({"/app/share/icons/hicolor/256x256/apps/io.github.Soundux.png",
+                               "/usr/share/pixmaps/soundux.png", executableDirectory / "assets" / "soundux.png",
+                               executableDirectory.parent_path() / "assets" / "soundux.png"});
+        if (!iconPath)
         {
             Fancy::fancy.logTime().warning() << "Failed to find iconPath for tray icon" << std::endl;
         }
 
-        tray = std::make_shared<Tray::Tray>("soundux-tray", iconPath.u8string());
+        try
+        {
+            tray = std::make_shared<Tray::Tray>("io.github.Soundux", iconPath ? iconPath->u8string() : "soundux");
+        }
+        catch (const std::exception &e)
+        {
+            Fancy::fancy.logTime().warning() << "Failed to initialize tray icon: " << e.what() << std::endl;
+        }
 #endif
 
         exposeFunctions();
@@ -63,6 +93,20 @@ namespace Soundux::Objects
 
         webview->setCloseCallback([this]() { return onClose(); });
         webview->setResizeCallback([this](int width, int height) { onResize(width, height); });
+        webview->setKeyCallback([](int key, bool pressed) {
+            if (pressed)
+            {
+                Globals::gHotKeys.onKeyDown(key);
+            }
+            else
+            {
+                Globals::gHotKeys.onKeyUp(key);
+            }
+        });
+        if (isWaylandSession())
+        {
+            Fancy::fancy.logTime().message() << "Wayland focused hotkey capture is enabled in the Qt UI" << std::endl;
+        }
 
 #if defined(IS_EMBEDDED)
 #if defined(__linux__)
@@ -284,7 +328,7 @@ namespace Soundux::Objects
     }
     bool WebView::onClose()
     {
-        if (Globals::gSettings.minimizeToTray)
+        if (tray && Globals::gSettings.minimizeToTray)
         {
             tray->getEntries().at(1)->setText(translations.show);
             webview->hide();
@@ -340,6 +384,14 @@ namespace Soundux::Objects
                                             .get();
 
                     setupTray();
+#if defined(__linux__)
+                    Globals::gHotKeys.refreshWaylandGlobalShortcuts();
+                    refreshAudioApps(true);
+                    if (Globals::gSettings.autoRefreshAudioDevices)
+                    {
+                        startAudioAppRefresh();
+                    }
+#endif
                 });
 
                 once = true;
@@ -348,7 +400,15 @@ namespace Soundux::Objects
     }
     void WebView::setupTray()
     {
+        if (!tray)
+        {
+            return;
+        }
+
         tray->addEntry(Tray::Button(translations.exit, [this]() {
+#if defined(__linux__)
+            stopAudioAppRefreshThread();
+#endif
             tray->exit();
             webview->exit();
         }));
@@ -381,6 +441,9 @@ namespace Soundux::Objects
     void WebView::mainLoop()
     {
         webview->run();
+#if defined(__linux__)
+        stopAudioAppRefreshThread();
+#endif
         if (tray)
         {
             tray->exit();
@@ -421,10 +484,130 @@ namespace Soundux::Objects
     {
         webview->callFunction<void>(Webview::JavaScriptFunction("window.onError", static_cast<std::uint8_t>(error)));
     }
+#if defined(__linux__)
+    void WebView::refreshAudioApps(bool force)
+    {
+        if (stopAudioAppRefresh)
+        {
+            return;
+        }
+
+        auto outputs = getOutputs();
+        auto playbackApps = getPlayback();
+
+        std::ostringstream signature;
+        for (const auto &output : outputs)
+        {
+            signature << "o:" << output->application << ':' << output->name << ';';
+        }
+        for (const auto &playback : playbackApps)
+        {
+            signature << "p:" << playback->application << ':' << playback->name << ';';
+        }
+
+        auto nextSignature = signature.str();
+        if (!force && nextSignature == audioAppSignature)
+        {
+            return;
+        }
+        audioAppSignature = std::move(nextSignature);
+
+        std::vector<std::shared_ptr<IconRecordingApp>> selectedOutputs;
+        for (const auto &application : Globals::gSettings.outputs)
+        {
+            auto item = std::find_if(outputs.begin(), outputs.end(),
+                                     [&](const auto &output) { return output->application == application; });
+            if (item != outputs.end())
+            {
+                selectedOutputs.emplace_back(*item);
+            }
+        }
+
+        if (!Globals::gSettings.useAsDefaultDevice && selectedOutputs.empty() && Globals::gSettings.outputs.empty() &&
+            !outputs.empty())
+        {
+            selectedOutputs.emplace_back(outputs.front());
+        }
+
+        if (Globals::gAudioBackend && !Globals::gAudio.getPlayingSounds().empty())
+        {
+            if (Globals::gSettings.useAsDefaultDevice)
+            {
+                for (const auto &output : outputs)
+                {
+                    if (output->application.find("soundux") == std::string::npos)
+                    {
+                        Globals::gAudioBackend->inputSoundTo(output);
+                    }
+                }
+            }
+            else
+            {
+                for (const auto &output : selectedOutputs)
+                {
+                    if (auto app = Globals::gAudioBackend->getRecordingApp(output->application))
+                    {
+                        Globals::gAudioBackend->inputSoundTo(app);
+                    }
+                }
+            }
+        }
+
+        webview->callFunction<void>(Webview::JavaScriptFunction("window.getStore().commit", "setOutputs", outputs));
+        webview->callFunction<void>(
+            Webview::JavaScriptFunction("window.getStore().commit", "setPlaybackApps", playbackApps));
+        webview->callFunction<void>(
+            Webview::JavaScriptFunction("window.getStore().commit", "setSelectedOutputs", selectedOutputs));
+    }
+
+    void WebView::startAudioAppRefresh()
+    {
+        if (audioAppRefreshThread.joinable())
+        {
+            return;
+        }
+
+        stopAudioAppRefresh = false;
+        audioAppRefreshThread = std::thread([this] {
+            while (!stopAudioAppRefresh)
+            {
+                std::this_thread::sleep_for(1500ms);
+                if (!stopAudioAppRefresh)
+                {
+                    refreshAudioApps();
+                }
+            }
+        });
+    }
+
+    void WebView::stopAudioAppRefreshThread()
+    {
+        stopAudioAppRefresh = true;
+        if (audioAppRefreshThread.joinable())
+        {
+            audioAppRefreshThread.join();
+        }
+    }
+#endif
     Settings WebView::changeSettings(Settings newSettings)
     {
+        const auto oldAutoRefreshAudioDevices = Globals::gSettings.autoRefreshAudioDevices;
         auto rtn = Window::changeSettings(newSettings);
-        tray->update();
+#if defined(__linux__)
+        if (rtn.autoRefreshAudioDevices && !oldAutoRefreshAudioDevices)
+        {
+            startAudioAppRefresh();
+            refreshAudioApps(true);
+        }
+        else if (!rtn.autoRefreshAudioDevices && oldAutoRefreshAudioDevices)
+        {
+            stopAudioAppRefreshThread();
+        }
+#endif
+        if (tray)
+        {
+            tray->update();
+        }
 
         return rtn;
     }

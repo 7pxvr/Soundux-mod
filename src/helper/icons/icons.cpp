@@ -1,6 +1,7 @@
 #if defined(__linux__)
 #include "icons.hpp"
 #include <dlfcn.h>
+#include <cstdlib>
 #include <fancy.hpp>
 #include <filesystem>
 #include <fstream>
@@ -10,8 +11,24 @@
 
 namespace Soundux::Objects
 {
+    static bool isWaylandSession()
+    {
+        const auto *waylandDisplay = std::getenv("WAYLAND_DISPLAY"); // NOLINT
+        const auto *sessionType = std::getenv("XDG_SESSION_TYPE");   // NOLINT
+
+        return (waylandDisplay && std::string(waylandDisplay).length() > 0) ||
+               (sessionType && std::string(sessionType) == "wayland");
+    }
+
     bool IconFetcher::setup()
     {
+        if (isWaylandSession())
+        {
+            Fancy::fancy.logTime().message()
+                << "Wayland session detected - X11 window icon support is disabled" << std::endl;
+            return false;
+        }
+
         if (!LibWnck::setup())
         {
             Fancy::fancy.logTime().message() << "LibWnck was not found - Icon support is not available" << std::endl;
@@ -38,7 +55,7 @@ namespace Soundux::Objects
             return instance;
         }
 
-        Fancy::fancy.logTime().failure() << "Could not create IconFetcher instance" << std::endl;
+        Fancy::fancy.logTime().message() << "IconFetcher is not available" << std::endl;
         return nullptr;
     }
     std::optional<int> IconFetcher::getPpid(int pid)

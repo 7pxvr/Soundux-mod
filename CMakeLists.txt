@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 project(soundux VERSION 0.2.8 DESCRIPTION "A crossplatform soundboard")
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 set(FULL_VERSION_STRING "0.2.8")
 option(EMBED_PATH "The path used for embedding" "OFF")
 option(USE_FLATPAK "Allows the program to run under flatpak" OFF)
@@ -60,14 +61,19 @@ target_link_libraries(soundux PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 if (UNIX)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
     find_package(PipeWire REQUIRED)
+    find_package(Qt6 COMPONENTS DBus QUIET)
 
     find_package(PulseAudio)
     find_package(X11 REQUIRED)
     target_include_directories(soundux SYSTEM PRIVATE ${X11_INCLUDE_DIR} ${PULSEAUDIO_INCLUDE_DIR} ${PipeWire_INCLUDE_DIRS} ${Spa_INCLUDE_DIRS}) 
 
     find_package(PkgConfig REQUIRED)
-	pkg_check_modules(WNCK libwnck-3.0)
+    pkg_check_modules(WNCK libwnck-3.0)
     target_link_libraries(soundux PRIVATE ${X11_LIBRARIES} ${X11_Xinput_LIB} ${X11_XTest_LIB})
+    if (Qt6DBus_FOUND)
+        set_target_properties(soundux PROPERTIES AUTOMOC ON)
+        target_link_libraries(soundux PRIVATE Qt6::DBus)
+    endif()
 endif()
 if (WIN32)
     target_compile_definitions(soundux PRIVATE _CRT_SECURE_NO_WARNINGS=1 _SILENCE_ALL_CXX17_DEPRECATION_WARNINGS=1 _UNICODE=1)
@@ -100,13 +106,17 @@ if (${EMBED_PATH} STREQUAL "OFF")
     
     # [[ Copy required files ]]
     #  > Copies frontend files
+    set(SOUNDUX_UI_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src/ui/impl/webview/lib/soundux-ui")
     if (MSVC)
-        file(COPY "${CMAKE_SOURCE_DIR}/src/ui/impl/webview/lib/soundux-ui/" 
-            DESTINATION "${CMAKE_SOURCE_DIR}/build/Release/dist")
+        set(SOUNDUX_DIST_DIR "${CMAKE_SOURCE_DIR}/build/Release/dist")
     else()
-        file(COPY "${CMAKE_SOURCE_DIR}/src/ui/impl/webview/lib/soundux-ui/" 
-            DESTINATION "${CMAKE_SOURCE_DIR}/build/dist")
+        set(SOUNDUX_DIST_DIR "${CMAKE_SOURCE_DIR}/build/dist")
     endif()
+
+    file(COPY "${SOUNDUX_UI_SOURCE_DIR}/" DESTINATION "${SOUNDUX_DIST_DIR}")
+    add_custom_target(copy_soundux_ui ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory "${SOUNDUX_UI_SOURCE_DIR}" "${SOUNDUX_DIST_DIR}"
+        COMMENT "Copying Soundux UI bundle")
 else()
     message("Using embed path " ${EMBED_PATH})
     target_include_directories(webview PUBLIC ${EMBED_PATH})

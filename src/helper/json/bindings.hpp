@@ -143,6 +143,9 @@ namespace nlohmann
                 {"tabHotkeysOnly", obj.tabHotkeysOnly},
                 {"minimizeToTray", obj.minimizeToTray},
                 {"allowOverlapping", obj.allowOverlapping},
+                {"autoRefreshAudioDevices", obj.autoRefreshAudioDevices},
+                {"rememberApplications", obj.rememberApplications},
+                {"rememberedApplications", obj.rememberedApplications},
                 {"muteDuringPlayback", obj.muteDuringPlayback},
                 {"useAsDefaultDevice", obj.useAsDefaultDevice},
                 {"allowMultipleOutputs", obj.allowMultipleOutputs},
@@ -190,6 +193,9 @@ namespace nlohmann
             get_to_safe(j, "minimizeToTray", obj.minimizeToTray);
             get_to_safe(j, "tabHotkeysOnly", obj.tabHotkeysOnly);
             get_to_safe(j, "allowOverlapping", obj.allowOverlapping);
+            get_to_safe(j, "autoRefreshAudioDevices", obj.autoRefreshAudioDevices);
+            get_to_safe(j, "rememberApplications", obj.rememberApplications);
+            get_to_safe(j, "rememberedApplications", obj.rememberedApplications);
             get_to_safe(j, "useAsDefaultDevice", obj.useAsDefaultDevice);
             get_to_safe(j, "muteDuringPlayback", obj.muteDuringPlayback);
             get_to_safe(j, "allowMultipleOutputs", obj.allowMultipleOutputs);

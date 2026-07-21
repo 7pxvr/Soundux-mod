@@ -1,14 +1,76 @@
 #if defined(__linux__)
 #include "pipewire.hpp"
+#include "../app_name.hpp"
 #include "forward.hpp"
+#include <algorithm>
+#include <cctype>
 #include <fancy.hpp>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <set>
+#include <sstream>
 #include <stdexcept>
+#include <string>
 
 namespace Soundux::Objects
 {
+    static std::string formatAppName(std::uint32_t pid, const std::string &appName, const std::string &binary,
+                                     const std::string &mediaName = {},
+                                     const std::vector<std::string> &identifiers = {})
+    {
+        auto displayName = appName.empty() ? binary : appName;
+        if (auto resolvedName = LinuxAudioAppName::resolve(pid, binary, identifiers))
+        {
+            displayName = *resolvedName;
+        }
+        if (!mediaName.empty() && mediaName != displayName)
+        {
+            const auto lowerMediaName = LinuxAudioAppName::lower(mediaName);
+            if (lowerMediaName.find("recordstream") == std::string::npos &&
+                lowerMediaName.find("electron") == std::string::npos)
+            {
+                displayName = mediaName;
+            }
+        }
+
+        if (!binary.empty() && !displayName.empty() && binary != displayName)
+        {
+            auto lowerBinary = LinuxAudioAppName::lower(binary);
+            auto lowerDisplay = LinuxAudioAppName::lower(displayName);
+
+            if (lowerDisplay.find(lowerBinary) == std::string::npos)
+            {
+                return displayName + " (" + binary + ")";
+            }
+        }
+
+        return displayName;
+    }
+
+    static std::string appIdentity(std::uint32_t pid, const std::string &binary,
+                                   const std::vector<std::string> &identifiers = {})
+    {
+        if (auto identity = LinuxAudioAppName::identity(pid, binary, identifiers))
+        {
+            return *identity;
+        }
+
+        return binary;
+    }
+
+    static std::uint32_t encodePipeWireVersion(const std::string &rawVersion)
+    {
+        std::stringstream stream(rawVersion);
+        std::uint32_t major = 0;
+        std::uint32_t minor = 0;
+        std::uint32_t patch = 0;
+        char separator = '\0';
+
+        stream >> major >> separator >> minor >> separator >> patch;
+        return (major * 10000) + (minor * 100) + patch;
+    }
+
     void PipeWire::sync()
     {
         spa_hook coreListener;
@@ -78,6 +140,23 @@ namespace Soundux::Objects
             {
                 self.applicationBinary = binary;
             }
+            if (const auto *mediaName = spa_dict_lookup(info->props, "media.name"); mediaName)
+            {
+                self.mediaName = mediaName;
+            }
+
+            for (const auto *property :
+                 {"application.id", "application.desktop", "application.icon_name", "flatpak.app.id"})
+            {
+                if (const auto *identifier = spa_dict_lookup(info->props, property); identifier)
+                {
+                    if (std::find(self.applicationIdentifiers.begin(), self.applicationIdentifiers.end(), identifier) ==
+                        self.applicationIdentifiers.end())
+                    {
+                        self.applicationIdentifiers.emplace_back(identifier);
+                    }
+                }
+            }
         }
     }
 
@@ -123,12 +202,8 @@ namespace Soundux::Objects
             Fancy::fancy.logTime().message()
                 << "Connected to PipeWire (" << info->name << ") on version " << info->version << std::endl;
 
-            std::string formattedVersion(info->version);
-            formattedVersion.erase(std::remove(formattedVersion.begin(), formattedVersion.end(), '.'),
-                                   formattedVersion.end());
-
-            version = std::stoi(formattedVersion);
-            if (version < 326)
+            version = encodePipeWireVersion(info->version);
+            if (version < encodePipeWireVersion("0.3.26"))
             {
                 Fancy::fancy.logTime().warning() << "Your PipeWire version is below the minimum required (0.3.26), "
                                                     "you may experience bugs or crashes"
@@ -169,38 +244,41 @@ namespace Soundux::Objects
             }
             if (strcmp(type, PW_TYPE_INTERFACE_Metadata) == 0)
             {
-                spa_hook listener;
-                pw_metadata_events events = {};
-
-                events.property = [](void *userdata, [[maybe_unused]] std::uint32_t id, const char *key,
-                                     [[maybe_unused]] const char *type, const char *value) -> int {
-                    auto *thiz = reinterpret_cast<PipeWire *>(userdata);
-                    if (thiz && key && value)
-                    {
-                        if (strcmp(key, "default.audio.source") == 0)
+                const auto *metadataName = spa_dict_lookup(props, "metadata.name");
+                if (!thiz->metadata && metadataName && strcmp(metadataName, "default") == 0)
+                {
+                    thiz->metadataEvents = {};
+                    thiz->metadataEvents.version = PW_VERSION_METADATA_EVENTS;
+                    thiz->metadataEvents.property = [](void *userdata, [[maybe_unused]] std::uint32_t id,
+                                                       const char *key, [[maybe_unused]] const char *type,
+                                                       const char *value) -> int {
+                        auto *thiz = reinterpret_cast<PipeWire *>(userdata);
+                        if (thiz && key && value)
                         {
-                            auto parsedValue = nlohmann::json::parse(value, nullptr, false);
-                            if (!parsedValue.is_discarded() && parsedValue.count("name"))
+                            if (strcmp(key, "default.audio.source") == 0)
                             {
-                                auto name = parsedValue["name"].get<std::string>();
+                                auto parsedValue = nlohmann::json::parse(value, nullptr, false);
+                                if (!parsedValue.is_discarded() && parsedValue.count("name"))
+                                {
+                                    auto name = parsedValue["name"].get<std::string>();
 
-                                thiz->defaultMicrophone = name;
-                                Fancy::fancy.logTime().message() << "Found default device: " << name << std::endl;
+                                    thiz->defaultMicrophone = name;
+                                    Fancy::fancy.logTime().message() << "Found default device: " << name << std::endl;
+                                }
                             }
                         }
+                        return 0;
+                    };
+
+                    thiz->metadata = reinterpret_cast<pw_metadata *>(
+                        pw_registry_bind(thiz->registry, id, type, PW_VERSION_METADATA, sizeof(PipeWire)));
+
+                    if (thiz->metadata)
+                    {
+                        pw_metadata_add_listener(thiz->metadata, &thiz->metadataListener, &thiz->metadataEvents,
+                                                 thiz); // NOLINT
+                        thiz->sync();
                     }
-                    return 0;
-                };
-
-                auto *boundMetaData = reinterpret_cast<pw_metadata *>(
-                    pw_registry_bind(thiz->registry, id, type, PW_VERSION_METADATA, sizeof(PipeWire)));
-
-                if (boundMetaData)
-                {
-                    pw_metadata_add_listener(boundMetaData, &listener, &events, thiz); // NOLINT
-                    thiz->sync();
-                    spa_hook_remove(&listener);
-                    PipeWireApi::proxy_destroy(reinterpret_cast<pw_proxy *>(boundMetaData));
                 }
             }
             if (strcmp(type, PW_TYPE_INTERFACE_Node) == 0)
@@ -353,6 +431,16 @@ namespace Soundux::Objects
 
     void PipeWire::destroy()
     {
+        if (usingSounduxAsDefaultSource)
+        {
+            revertDefault();
+        }
+        if (metadata)
+        {
+            spa_hook_remove(&metadataListener);
+            PipeWireApi::proxy_destroy(reinterpret_cast<pw_proxy *>(metadata));
+            metadata = nullptr;
+        }
         PipeWireApi::proxy_destroy(reinterpret_cast<pw_proxy *>(registry));
         PipeWireApi::core_disconnect(core);
         PipeWireApi::context_destroy(context);
@@ -469,8 +557,9 @@ namespace Soundux::Objects
                     PipeWireRecordingApp app;
                     app.pid = node.pid;
                     app.nodeId = nodeId;
-                    app.name = node.name;
-                    app.application = node.applicationBinary;
+                    app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
+                                             node.applicationIdentifiers);
+                    app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
                     rtn.emplace_back(std::make_shared<PipeWireRecordingApp>(app));
                 }
             }
@@ -504,8 +593,9 @@ namespace Soundux::Objects
                     PipeWirePlaybackApp app;
                     app.pid = node.pid;
                     app.nodeId = nodeId;
-                    app.name = node.name;
-                    app.application = node.applicationBinary;
+                    app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
+                                             node.applicationIdentifiers);
+                    app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
                     rtn.emplace_back(std::make_shared<PipeWirePlaybackApp>(app));
                 }
             }
@@ -519,13 +609,15 @@ namespace Soundux::Objects
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (node.applicationBinary == app)
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) == app ||
+                node.applicationBinary == app)
             {
                 PipeWirePlaybackApp app;
                 app.pid = node.pid;
                 app.nodeId = nodeId;
-                app.name = node.name;
-                app.application = node.applicationBinary;
+                app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
+                                         node.applicationIdentifiers);
+                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
                 return std::make_shared<PipeWirePlaybackApp>(app);
             }
         }
@@ -538,13 +630,15 @@ namespace Soundux::Objects
         auto scopedNodes = nodes.scoped();
         for (const auto &[nodeId, node] : *scopedNodes)
         {
-            if (node.applicationBinary == app)
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) == app ||
+                node.applicationBinary == app)
             {
                 PipeWireRecordingApp app;
                 app.pid = node.pid;
                 app.nodeId = nodeId;
-                app.name = node.name;
-                app.application = node.applicationBinary;
+                app.name = formatAppName(node.pid, node.name, node.applicationBinary, node.mediaName,
+                                         node.applicationIdentifiers);
+                app.application = appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers);
                 return std::make_shared<PipeWireRecordingApp>(app);
             }
         }
@@ -554,15 +648,61 @@ namespace Soundux::Objects
 
     bool PipeWire::useAsDefault()
     {
-        // TODO(pipewire): Find a way to connect the output to the microphone
-        Fancy::fancy.logTime().warning() << "Fix Me: useAsDefault() is not yet implemented on pipewire" << std::endl;
-        return false;
+        if (!metadata)
+        {
+            Fancy::fancy.logTime().warning()
+                << "Could not set default source because PipeWire metadata is unavailable" << std::endl;
+            return false;
+        }
+
+        if (!usingSounduxAsDefaultSource)
+        {
+            defaultMicrophoneBeforeSoundux = defaultMicrophone;
+        }
+
+        constexpr auto sounduxMonitor = "soundux_sink.monitor";
+        auto value = nlohmann::json({{"name", sounduxMonitor}}).dump();
+        auto liveResult =
+            pw_metadata_set_property(metadata, 0, "default.audio.source", "Spa:String:JSON", value.c_str());
+        auto configuredResult =
+            pw_metadata_set_property(metadata, 0, "default.configured.audio.source", "Spa:String:JSON", value.c_str());
+        if (liveResult < 0 || configuredResult < 0)
+        {
+            Fancy::fancy.logTime().warning()
+                << "Failed to set PipeWire default source to " << sounduxMonitor << std::endl;
+            return false;
+        }
+
+        usingSounduxAsDefaultSource = true;
+        defaultMicrophone = sounduxMonitor;
+        sync();
+        return true;
     }
 
     bool PipeWire::revertDefault()
     {
-        // TODO(pipewire): Delete link created by `useAsDefault`
-        Fancy::fancy.logTime().warning() << "Fix Me: revertDefault() is not yet implemented on pipewire" << std::endl;
+        if (!metadata || defaultMicrophoneBeforeSoundux.empty())
+        {
+            usingSounduxAsDefaultSource = false;
+            return true;
+        }
+
+        auto value = nlohmann::json({{"name", defaultMicrophoneBeforeSoundux}}).dump();
+        auto liveResult =
+            pw_metadata_set_property(metadata, 0, "default.audio.source", "Spa:String:JSON", value.c_str());
+        auto configuredResult =
+            pw_metadata_set_property(metadata, 0, "default.configured.audio.source", "Spa:String:JSON", value.c_str());
+        if (liveResult < 0 || configuredResult < 0)
+        {
+            Fancy::fancy.logTime().warning()
+                << "Failed to restore PipeWire default source to " << defaultMicrophoneBeforeSoundux << std::endl;
+            return false;
+        }
+
+        defaultMicrophone = defaultMicrophoneBeforeSoundux;
+        defaultMicrophoneBeforeSoundux.clear();
+        usingSounduxAsDefaultSource = false;
+        sync();
         return true;
     }
 
@@ -638,15 +778,22 @@ namespace Soundux::Objects
 
         for (const auto &[nodeId, node] : nodes)
         {
-            if (node.applicationBinary != app->application)
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) != app->application &&
+                node.applicationBinary != app->application)
                 continue;
 
+            std::set<std::uint32_t> linkedTargetPorts;
             for (const auto &[portId, port] : ports)
             {
                 if (port.direction == SPA_DIRECTION_OUTPUT && port.portAlias.find("soundux") != std::string::npos)
                 {
                     for (const auto &[nodePortId, nodePort] : node.ports)
                     {
+                        if (linkedTargetPorts.count(nodePortId))
+                        {
+                            continue;
+                        }
+
                         if (nodePort.direction == SPA_DIRECTION_INPUT)
                         {
                             if (nodePort.side == Side::UNDEFINED || port.side == Side::UNDEFINED)
@@ -659,6 +806,7 @@ namespace Soundux::Objects
                                 if (link)
                                 {
                                     success = true;
+                                    linkedTargetPorts.emplace(nodePortId);
                                     soundInputLinks.at(app->application).emplace_back(*link);
                                 }
                             }
@@ -716,7 +864,8 @@ namespace Soundux::Objects
 
         for (const auto &[nodeId, node] : nodes)
         {
-            if (node.applicationBinary != app->application)
+            if (appIdentity(node.pid, node.applicationBinary, node.applicationIdentifiers) != app->application &&
+                node.applicationBinary != app->application)
                 continue;
 
             for (const auto &[portId, port] : ports)

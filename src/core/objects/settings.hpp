@@ -1,7 +1,8 @@
 #pragma once
 #include <core/enums/enums.hpp>
-#include <string>
+#include <map>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace Soundux
@@ -19,6 +20,7 @@ namespace Soundux
             std::vector<int> stopHotkey;
 
             std::vector<std::string> outputs;
+            std::map<std::string, std::string> rememberedApplications;
             std::uint32_t selectedTab = 0;
 
             int remoteVolume = 100;
@@ -26,6 +28,8 @@ namespace Soundux
             bool syncVolumes = false;
 
             bool allowMultipleOutputs = false;
+            bool autoRefreshAudioDevices = true;
+            bool rememberApplications = true;
             bool useAsDefaultDevice = false;
             bool muteDuringPlayback = false;
             bool allowOverlapping = true;

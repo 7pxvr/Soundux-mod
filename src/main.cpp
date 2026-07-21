@@ -1,11 +1,91 @@
 #include <backward.hpp>
 #include <core/enums/enums.hpp>
 #include <core/global/globals.hpp>
+#include <cstdlib>
 #include <fancy.hpp>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <ui/impl/webview/webview.hpp>
 
 #if defined(__linux__)
 #include <helper/audio/linux/backend.hpp>
+#endif
+
+#if defined(__linux__) && !defined(SOUNDUX_WEBVIEW_QT)
+namespace
+{
+    bool hasEnvValue(const char *name)
+    {
+        const auto *value = std::getenv(name); // NOLINT
+        return value && std::string(value).length() > 0;
+    }
+
+    bool isWaylandSession()
+    {
+        const auto *sessionType = std::getenv("XDG_SESSION_TYPE"); // NOLINT
+        return hasEnvValue("WAYLAND_DISPLAY") || (sessionType && std::string(sessionType) == "wayland");
+    }
+
+    bool isNvidiaGpuPresent()
+    {
+        static constexpr auto nvidiaVendorId = "0x10de";
+
+        std::error_code ec;
+        for (const auto &entry : std::filesystem::directory_iterator("/sys/class/drm", ec))
+        {
+            auto vendorPath = entry.path() / "device" / "vendor";
+            if (!std::filesystem::is_regular_file(vendorPath, ec))
+            {
+                continue;
+            }
+
+            std::ifstream vendorFile(vendorPath);
+            std::string vendor;
+            vendorFile >> vendor;
+            std::transform(vendor.begin(), vendor.end(), vendor.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+            if (vendor == nvidiaVendorId)
+            {
+                return true;
+            }
+        }
+
+        return std::filesystem::exists("/proc/driver/nvidia/version", ec);
+    }
+
+    void configureWaylandWebKitWorkarounds()
+    {
+        if (!isWaylandSession())
+        {
+            return;
+        }
+
+        if (hasEnvValue("SOUNDUX_DISABLE_WEBKIT_DMABUF"))
+        {
+            setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
+            Fancy::fancy.logTime().message()
+                << "Wayland WebKit workaround: disabling DMA-BUF renderer by request" << std::endl;
+            return;
+        }
+
+        if (isNvidiaGpuPresent() && !hasEnvValue("__NV_DISABLE_EXPLICIT_SYNC") &&
+            !hasEnvValue("WEBKIT_DISABLE_DMABUF_RENDERER") && !hasEnvValue("WEBKIT_DISABLE_COMPOSITING_MODE"))
+        {
+            setenv("__NV_DISABLE_EXPLICIT_SYNC", "1", 0);
+            Fancy::fancy.logTime().message()
+                << "Wayland NVIDIA workaround: disabling explicit sync for WebKit" << std::endl;
+            return;
+        }
+
+        if (hasEnvValue("__NV_DISABLE_EXPLICIT_SYNC") || hasEnvValue("WEBKIT_DISABLE_DMABUF_RENDERER") ||
+            hasEnvValue("WEBKIT_DISABLE_COMPOSITING_MODE"))
+        {
+            Fancy::fancy.logTime().message() << "Wayland WebKit workaround: using existing environment" << std::endl;
+        }
+    }
+} // namespace
 #endif
 
 #if defined(_WIN32)
@@ -34,6 +114,10 @@ int main(int argc, char **arguments)
     }
 #else
     std::vector<std::string> args(reinterpret_cast<char **>(arguments), reinterpret_cast<char **>(arguments) + argc);
+#endif
+
+#if defined(__linux__) && !defined(SOUNDUX_WEBVIEW_QT)
+    configureWaylandWebKitWorkarounds();
 #endif
 
 #if defined(_WIN32)
@@ -136,6 +220,11 @@ int main(int argc, char **arguments)
 #endif
     gConfig.data.set(gData);
     gConfig.settings = gSettings;
+    if (!gConfig.settings.rememberApplications)
+    {
+        gConfig.settings.outputs.clear();
+        gConfig.settings.rememberedApplications.clear();
+    }
     gConfig.save();
 
     return 0;
