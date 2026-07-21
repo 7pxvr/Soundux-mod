@@ -18,6 +18,7 @@
 #include <QWebEngineScriptCollection>
 #include <QWebEngineSettings>
 #include <QWebEngineView>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -86,6 +87,23 @@ namespace
 
         return std::nullopt;
     }
+
+    void suppressChromiumStderrNoise()
+    {
+        constexpr auto disableLoggingFlag = "--disable-logging";
+        auto flags = std::string(std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
+                                     ? std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
+                                     : "");
+        if (flags.find(disableLoggingFlag) == std::string::npos)
+        {
+            if (!flags.empty())
+            {
+                flags += ' ';
+            }
+            flags += disableLoggingFlag;
+            setenv("QTWEBENGINE_CHROMIUM_FLAGS", flags.c_str(), 1); // NOLINT
+        }
+    }
 } // namespace
 
 namespace Webview
@@ -146,6 +164,8 @@ namespace Webview
 
     Window::Window(std::size_t width, std::size_t height) : BaseWindow("", width, height)
     {
+        suppressChromiumStderrNoise();
+
         if (!QApplication::instance())
         {
             application = std::make_unique<QApplication>(qtArgc, qtArgv);
