@@ -90,19 +90,23 @@ namespace
 
     void suppressChromiumStderrNoise()
     {
-        constexpr auto disableLoggingFlag = "--disable-logging";
         auto flags = std::string(std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
                                      ? std::getenv("QTWEBENGINE_CHROMIUM_FLAGS")
                                      : "");
-        if (flags.find(disableLoggingFlag) == std::string::npos)
+
+        for (const auto *flag : {"--disable-logging", "--log-level=3"})
         {
-            if (!flags.empty())
+            if (flags.find(flag) == std::string::npos)
             {
-                flags += ' ';
+                if (!flags.empty())
+                {
+                    flags += ' ';
+                }
+                flags += flag;
             }
-            flags += disableLoggingFlag;
-            setenv("QTWEBENGINE_CHROMIUM_FLAGS", flags.c_str(), 1); // NOLINT
         }
+
+        setenv("QTWEBENGINE_CHROMIUM_FLAGS", flags.c_str(), 1); // NOLINT
     }
 } // namespace
 
